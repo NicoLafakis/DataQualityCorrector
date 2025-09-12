@@ -36,16 +36,19 @@ export default function App() {
         }
     }, []);
 
-    // Validate HubSpot token whenever it changes (Users API)
+    // Validate HubSpot token whenever it changes (try simple CRM API)
     useEffect(() => {
         const handler = setTimeout(() => {
             if (hubSpotToken) {
                 const checkToken = async () => {
                     setIsCheckingToken(true);
                     try {
-                        await hubSpotApiRequest('/crm/v3/owners/', 'GET', hubSpotToken);
+                        // Try a simpler endpoint that should work with most tokens
+                        await hubSpotApiRequest('/crm/v3/objects/contacts', 'GET', hubSpotToken);
                         setTokenValid(true);
+                        console.log('Token validation successful');
                     } catch (error) {
+                        console.log('Token validation failed:', error.message || 'Unknown error');
                         setTokenValid(false);
                     } finally {
                         setIsCheckingToken(false);

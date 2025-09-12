@@ -47,8 +47,15 @@ app.post('/api/hubspot', async (req, res) => {
 
     return res.status(upstream.status).json(parsed);
   } catch (error) {
-    console.error('HubSpot API Error:', error);
-    res.status(500).json({ error: 'HubSpot API request failed' });
+    console.error('HubSpot API Error:', error.message || error);
+    
+    // Provide more detailed error information to help debugging
+    res.status(500).json({ 
+      error: 'HubSpot API request failed',
+      message: error.message || 'Unknown error',
+      path: req.body.path,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 

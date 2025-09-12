@@ -28,7 +28,24 @@ const apiRequest = async (endpoint, method, body = null) => {
         }
 
         if (!response.ok) {
-            const message = (data && (data.message || data.error)) || `HTTP ${response.status}`;
+            // Extract a useful error message - handle different error formats
+            let message;
+            if (data) {
+                if (typeof data === 'string') {
+                    message = data;
+                } else if (data.message) {
+                    message = data.message;
+                } else if (data.error) {
+                    message = typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
+                } else if (data.status) {
+                    message = `Status: ${data.status}`;
+                } else {
+                    message = JSON.stringify(data).substring(0, 100);
+                }
+            } else {
+                message = `HTTP ${response.status}`;
+            }
+            
             const err = new Error(`API Error (${response.status}): ${message}`);
             err.status = response.status;
             err.body = data;
@@ -44,7 +61,21 @@ const apiRequest = async (endpoint, method, body = null) => {
 export const hubSpotApiRequest = (path, method, token, body = null) => {
     // The backend receives this payload, adds the token to the Authorization header,
     // and forwards the request to the HubSpot API.
-    const normalizedToken = (token || '').replace(/^Bearer\s+/i, '');
+    
+    // Basic validation
+    if (!token || token.trim() === '') {
+        return Promise.reject(new Error('Invalid token: Token cannot be empty'));
+    }
+    
+    if (!path || !path.startsWith('/')) {
+        return Promise.reject(new Error('Invalid path: Path must start with /'));
+    }
+    
+    const normalizedToken = token.replace(/^Bearer\s+/i, '').trim();
+    
+    // Add debug info
+    console.log(`Requesting HubSpot API: ${method} ${path}`);
+    
     return apiRequest('/api/hubspot', 'POST', { path, method, token: normalizedToken, body });
 };
 
