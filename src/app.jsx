@@ -162,11 +162,12 @@ export default function App() {
                                     <label className="block text-sm font-medium text-slate-700">HubSpot Private App Token</label>
                                     <div className="relative">
                                         <input
+                                            id="hubspot-token-input"
                                             type="password"
                                             value={hubSpotToken}
                                             onChange={(e) => setHubSpotToken(e.target.value)}
                                             className="w-full px-4 py-3 text-sm transition-colors bg-white border rounded-lg border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                            placeholder="Enter your HubSpot token..."
+                                            placeholder="Enter your HubSpot API token"
                                         />
                                         <div className="absolute inset-y-0 right-0 flex items-center pr-3">
                                             {isCheckingToken ? (
@@ -195,7 +196,7 @@ export default function App() {
                                             value={openAiKey}
                                             onChange={(e) => setOpenAiKey(e.target.value)}
                                             className="w-full px-4 py-3 text-sm transition-colors bg-white border rounded-lg border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                            placeholder="sk-..."
+                                            placeholder="Enter your OpenAI API key"
                                         />
                                         <p className="mt-1 text-xs text-slate-500">Needed for geographic data correction</p>
                                     </div>
@@ -238,7 +239,7 @@ export default function App() {
 
                                     <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
                                         <button
-                                            onClick={() => document.querySelector('input[placeholder="Enter your HubSpot token..."]')?.focus()}
+                                            onClick={() => document.querySelector('#hubspot-token-input')?.focus()}
                                             className="inline-flex items-center px-5 py-3 text-sm text-white transition bg-indigo-600 rounded-md hover:bg-indigo-700"
                                         >
                                             Add HubSpot Token
