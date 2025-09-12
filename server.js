@@ -1,103 +1,74 @@
 import express from 'express';
+import fetch from 'node-fetch';
 import cors from 'cors';
+import bodyParser from 'body-parser';
+
 const app = express();
-const PORT = 3002;
+const PORT = 3001;
 
-// Middleware
 app.use(cors());
-app.use(express.json());
+app.use(bodyParser.json());
 
-// Simple health check
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString() });
-});
-
-// HubSpot API proxy
+// --- PROXY ENDPOINT FOR HUBSPOT ---
 app.post('/api/hubspot', async (req, res) => {
-  try {
     const { path, method, token, body } = req.body;
 
-    // Defensive: normalize token (strip any leading "Bearer ")
-    const normalizedToken = (token || '').replace(/^Bearer\s+/i, '');
+    if (!token) {
+        return res.status(400).json({ message: 'Missing HubSpot token' });
+    }
 
     const url = `https://api.hubapi.com${path}`;
-    const upstream = await fetch(url, {
-      method,
-      headers: {
-        'Authorization': `Bearer ${normalizedToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: body ? JSON.stringify(body) : undefined
-    });
 
-    if (upstream.status === 204) {
-      return res.sendStatus(204);
+    // --- FIX STARTS HERE ---
+    // Conditionally build the options for the fetch request.
+    const options = {
+        method,
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+        },
+    };
+
+    // Only add a body to the request if the method is not GET and a body is provided.
+    if (method.toUpperCase() !== 'GET' && body) {
+        options.body = JSON.stringify(body);
     }
+    // --- FIX ENDS HERE ---
 
-    const text = await upstream.text();
-    let parsed;
+
     try {
-      parsed = text ? JSON.parse(text) : {};
-    } catch {
-      parsed = { error: text };
+        const hubSpotResponse = await fetch(url, options);
+        
+        // Handle cases where there might not be a JSON body to parse
+        const contentType = hubSpotResponse.headers.get("content-type");
+        let data;
+        if (contentType && contentType.includes("application/json")) {
+            data = await hubSpotResponse.json();
+        } else {
+            // If not JSON, just get the text. Will be empty for 204s.
+            data = await hubSpotResponse.text(); 
+        }
+
+        if (!hubSpotResponse.ok) {
+            console.error('HubSpot API Error:', data);
+            // Forward HubSpot's status and error message to the client
+            return res.status(hubSpotResponse.status).json(data);
+        }
+
+        res.json(data);
+    } catch (error) {
+        console.error('Error proxying to HubSpot:', error);
+        res.status(500).json({ message: 'Internal Server Error' });
     }
-
-    // Minimal diagnostics without leaking secrets
-    console.log('[HubSpot]', new Date().toISOString(), upstream.status, method, path, '-', (text || '').slice(0, 200));
-
-    return res.status(upstream.status).json(parsed);
-  } catch (error) {
-    console.error('HubSpot API Error:', error.message || error);
-    
-    // Provide more detailed error information to help debugging
-    res.status(500).json({ 
-      error: 'HubSpot API request failed',
-      message: error.message || 'Unknown error',
-      path: req.body.path,
-      timestamp: new Date().toISOString()
-    });
-  }
 });
 
-// OpenAI API proxy
+
+// --- PROXY ENDPOINT FOR OPENAI (example) ---
 app.post('/api/openai', async (req, res) => {
-  try {
-    const { apiKey, prompt } = req.body;
-
-    const url = 'https://api.openai.com/v1/chat/completions';
-    const upstream = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${(apiKey || '').replace(/^Bearer\s+/i, '')}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'gpt-3.5-turbo',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 1000,
-        temperature: 0.7
-      })
-    });
-
-    if (upstream.status === 204) {
-      return res.sendStatus(204);
-    }
-    const text = await upstream.text();
-    let parsed;
-    try {
-      parsed = text ? JSON.parse(text) : {};
-    } catch {
-      parsed = { error: text };
-    }
-
-    console.log('[OpenAI]', new Date().toISOString(), upstream.status, 'POST', '/v1/chat/completions', '-', (text || '').slice(0, 200));
-    return res.status(upstream.status).json(parsed);
-  } catch (error) {
-    console.error('OpenAI API Error:', error);
-    res.status(500).json({ error: 'OpenAI API request failed' });
-  }
+    // ... your OpenAI logic here
 });
+
 
 app.listen(PORT, () => {
-  console.log(`Backend server running on http://localhost:${PORT}`);
+    console.log(`Server is running on http://localhost:${PORT}`);
 });
