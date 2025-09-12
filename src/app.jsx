@@ -36,14 +36,14 @@ export default function App() {
         }
     }, []);
 
-    // Validate HubSpot token whenever it changes
+    // Validate HubSpot token whenever it changes (Users API)
     useEffect(() => {
         const handler = setTimeout(() => {
             if (hubSpotToken) {
                 const checkToken = async () => {
                     setIsCheckingToken(true);
                     try {
-                        await hubSpotApiRequest('/oauth/v1/access-tokens/' + hubSpotToken.split(' ').pop(), 'GET', hubSpotToken);
+                        await hubSpotApiRequest('/crm/v3/owners/', 'GET', hubSpotToken);
                         setTokenValid(true);
                     } catch (error) {
                         setTokenValid(false);
