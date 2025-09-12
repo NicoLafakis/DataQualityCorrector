@@ -68,15 +68,15 @@ export default function App() {
     };
 
     return (
-        <div className="bg-gray-100 min-h-screen font-sans">
+        <div className="min-h-screen font-sans bg-gray-100">
             <header className="bg-white shadow-md">
-                <div className="container mx-auto px-6 py-4">
+                <div className="container px-6 py-4 mx-auto">
                     <h1 className="text-3xl font-bold text-gray-800">HubSpot Data Quality Suite</h1>
                 </div>
             </header>
 
-            <main className="container mx-auto px-6 py-8">
-                <div className="flex flex-col md:flex-row gap-8">
+            <main className="container px-6 py-8 mx-auto">
+                <div className="flex flex-col gap-8 md:flex-row">
                     <aside className="md:w-1/4 lg:w-1/5">
                         <nav className="space-y-2">
                             {Object.entries(TABS).map(([key, tab]) => (
@@ -92,20 +92,20 @@ export default function App() {
                             ))}
                         </nav>
 
-                        <div className="mt-8 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-                             <h3 className="text-lg font-semibold text-gray-800 mb-3">Configuration</h3>
+                        <div className="p-4 mt-8 bg-white border border-gray-200 rounded-lg shadow-sm">
+                             <h3 className="mb-3 text-lg font-semibold text-gray-800">Configuration</h3>
                              <div className="space-y-4">
-                                <form>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">HubSpot Token</label>
+                                <div>
+                                    <label className="block mb-1 text-sm font-medium text-gray-700">HubSpot Token</label>
                                     <div className="relative">
                                         <input
                                             type="password"
                                             value={hubSpotToken}
                                             onChange={(e) => setHubSpotToken(e.target.value)}
-                                            className="w-full p-2 border rounded-md pr-10 text-sm"
+                                            className="w-full p-2 pr-10 text-sm border rounded-md"
                                             placeholder="paste-your-token-here"
                                         />
-                                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                                        <div className="absolute inset-y-0 right-0 flex items-center pr-3">
                                             {isCheckingToken ? <Spinner /> : (
                                                 <>
                                                     {tokenValid === true && <CheckCircleIcon />}
@@ -114,17 +114,17 @@ export default function App() {
                                             )}
                                          </div>
                                     </div>
-                                </form>
-                                <form>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">OpenAI Key</label>
+                                </div>
+                                <div>
+                                    <label className="block mb-1 text-sm font-medium text-gray-700">OpenAI Key</label>
                                     <input
                                         type="password"
                                         value={openAiKey}
                                         onChange={(e) => setOpenAiKey(e.target.value)}
-                                        className="w-full p-2 border rounded-md text-sm"
+                                        className="w-full p-2 text-sm border rounded-md"
                                         placeholder="sk-..."
                                     />
-                                </form>
+                                </div>
                              </div>
                         </div>
                     </aside>
@@ -133,11 +133,11 @@ export default function App() {
                         {tokenValid ? (
                             TABS[activeTab].component
                         ) : (
-                            <div className="text-center bg-white p-8 rounded-lg shadow-md h-full flex flex-col justify-center items-center">
+                            <div className="flex flex-col items-center justify-center h-full p-8 text-center bg-white rounded-lg shadow-md">
                                 <h2 className="text-xl font-semibold text-gray-700">
                                     {isCheckingToken ? 'Validating HubSpot Token...' : 'Please enter a valid HubSpot Private App Token to begin.'}
                                 </h2>
-                                <p className="text-gray-500 mt-2">The data quality tools will be enabled once a valid token is provided.</p>
+                                <p className="mt-2 text-gray-500">The data quality tools will be enabled once a valid token is provided.</p>
                             </div>
                         )}
                     </div>
