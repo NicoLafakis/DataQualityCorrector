@@ -14,28 +14,39 @@ export default function App() {
     const [tokenValid, setTokenValid] = useState(null);
     const [isCheckingToken, setIsCheckingToken] = useState(false);
 
-    // Read API keys from URL on initial load
+    // Read API keys from URL or sessionStorage on initial load
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
-        const hsToken = params.get('hubSpotToken');
-        const oaKey = params.get('openAiKey');
-        if (hsToken) {
-            setHubSpotToken(hsToken);
-        }
-        if (oaKey) {
-            setOpenAiKey(oaKey);
-        }
+        const hsToken = params.get('hubSpotToken') || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('hubSpotToken') : '');
+        const oaKey = params.get('openAiKey') || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('openAiKey') : '');
+        if (hsToken) setHubSpotToken(hsToken);
+        if (oaKey) setOpenAiKey(oaKey);
     }, []);
 
-    // Validate HubSpot token whenever it changes
+    // Persist and validate HubSpot token whenever it changes
     useEffect(() => {
         const handler = setTimeout(() => {
             if (hubSpotToken) {
+                try { if (typeof sessionStorage !== 'undefined') sessionStorage.setItem('hubSpotToken', hubSpotToken); } catch (_) {}
                 const checkToken = async () => {
                     setIsCheckingToken(true);
                     try {
-                        // This token check needs to go through the proxy as well
-                        await hubSpotApiRequest('/oauth/v1/access-tokens/' + hubSpotToken.split(' ').pop(), 'GET', hubSpotToken);
+                        // Robust validation covering both Private App tokens and OAuth tokens
+                        const clean = (hubSpotToken || '').replace(/^Bearer\s+/i, '');
+
+                        // 1) Private app token introspection
+                        // POST /oauth/v2/private-apps/get/access-token-info with body { tokenKey }
+                        try {
+                            await hubSpotApiRequest('/oauth/v2/private-apps/get/access-token-info', 'POST', clean, { tokenKey: clean });
+                            setTokenValid(true);
+                            return; // success
+                        } catch (_e1) {
+                            // fall through to OAuth access token metadata
+                        }
+
+                        // 2) OAuth access token metadata
+                        // GET /oauth/v1/access-tokens/{token}
+                        await hubSpotApiRequest('/oauth/v1/access-tokens/' + clean, 'GET', clean);
                         setTokenValid(true);
                     } catch (error) {
                         setTokenValid(false);
@@ -46,11 +57,20 @@ export default function App() {
                 checkToken();
             } else {
                 setTokenValid(null);
+                try { if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('hubSpotToken'); } catch (_) {}
             }
         }, 500);
 
         return () => clearTimeout(handler);
     }, [hubSpotToken]);
+
+    // Persist OpenAI key
+    useEffect(() => {
+        try {
+            if (openAiKey && typeof sessionStorage !== 'undefined') sessionStorage.setItem('openAiKey', openAiKey);
+            else if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('openAiKey');
+        } catch (_) {}
+    }, [openAiKey]);
 
     const TABS = {
         anomalies: { label: 'Anomalies', icon: <ShieldCheckIcon />, component: <AnomalyDetector token={hubSpotToken} /> },
