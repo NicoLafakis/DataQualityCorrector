@@ -1,0 +1,40 @@
+{
+  "name": "dataqualitycorrector",
+  "version": "1.0.0",
+  "description": "A small, client-side React app that helps audit and fix HubSpot CRM data quality issues without changing the look & feel or behavior of the original single-file app.",
+  "main": "main.jsx",
+  "directories": {
+    "example": "examples",
+    "lib": "lib"
+  },
+  "scripts": {
+    "dev": "concurrently \"npm:dev:web\" \"npm:dev:proxy\"",
+    "dev:web": "vite",
+    "dev:proxy": "npm --prefix examples/backend-proxy run dev",
+    "install:proxy": "npm --prefix examples/backend-proxy install",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NicoLafakis/DataQualityCorrector.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/NicoLafakis/DataQualityCorrector/issues"
+  },
+  "homepage": "https://github.com/NicoLafakis/DataQualityCorrector#readme",
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^9.0.1",
+    "vite": "^5.4.8"
+  }
+}

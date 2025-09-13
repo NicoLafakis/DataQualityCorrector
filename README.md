@@ -16,6 +16,23 @@ This app talks to two proxy endpoints that you must host/provide in your environ
 
 The UI never calls third-party APIs directly; it always uses these proxy endpoints.
 
+### Example backend proxy (Node/Express)
+An example backend proxy is included under `examples/backend-proxy` to get you running quickly.
+
+Run it like this (Windows `cmd.exe`):
+
+```bat
+cd examples\backend-proxy
+npm install
+npm run dev
+```
+
+This will start a local proxy at `http://localhost:3001` exposing:
+- `POST /api/hubspot`
+- `POST /api/openai`
+
+Pair this with the Vite proxy in the Quick start below.
+
 ## Configuration
 - HubSpot Private App Token: paste into the sidebar field. The app validates it by calling `/oauth/v1/access-tokens/{token}` through the proxy.
 - OpenAI API Key: optional, only required for the Geo Corrector tool.
@@ -37,70 +54,39 @@ DataQualityCorrector/
 ```
 
 ## Development
-This repository is a simple, front-end React setup. Use your existing tooling to serve/build it (e.g., Vite, esbuild, a simple bundler, or your own stack). No additional dependencies were introduced by the refactor.
+The repo now includes a minimal Vite setup and a sample backend proxy. You can run everything locally with a few commands.
 
-### Minimal assumptions
-- Your dev server should serve `app.jsx` as the entry (or import it from your own entry point).
-- The two API proxy endpoints listed above must be available at runtime.
+### Prerequisites
+- Node.js 18 or newer (`node -v`)
 
-### Quick start (Vite example)
-Below is a minimal setup to run this project locally using Vite on Windows (`cmd.exe`). This repo doesn’t include build tooling by design, so you can keep this alongside your backend proxy.
-
-1) Initialize a Vite React app next to this folder (or inside if you prefer). From the repo root:
-
+### One-time install
 ```bat
-:: Ensure Node.js >= 18
-node -v
-
-:: Create a lightweight Vite scaffold
-npm create vite@latest dqc-vite -- --template react
-cd dqc-vite
 npm install
-npm install @vitejs/plugin-react --save-dev
+npm run install:proxy
 ```
 
-2) Point the Vite app at this repo’s `app.jsx` by replacing the default entry. In `dqc-vite/src/main.jsx`:
-
-```jsx
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import App from '../../DataQualityCorrector/app.jsx'
-
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-)
-```
-
-3) Keep the default `index.html` (created by Vite) which includes a `div#root` and script to `src/main.jsx`.
-
-4) Configure the dev proxy so frontend calls are forwarded to your backend proxy server. Create or edit `dqc-vite/vite.config.js`:
-
-```js
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-
-const target = 'http://localhost:3001' // your backend proxy host/port
-
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    proxy: {
-      '/api/hubspot': { target, changeOrigin: true },
-      '/api/openai': { target, changeOrigin: true },
-    },
-  },
-})
-```
-
-5) Start Vite:
-
+### Start local dev (frontend + proxy)
 ```bat
 npm run dev
 ```
 
-6) Open the app in the browser (the URL Vite prints, typically `http://localhost:5173`). Provide your HubSpot token and (optionally) OpenAI key in the sidebar or via query params, and ensure your backend proxy serves `POST /api/hubspot` and `POST /api/openai`.
+This starts:
+- Frontend (Vite) at `http://localhost:5173` (auto-open)
+- Backend proxy (Express) at `http://localhost:3001`
+
+If port `3001` is already in use, stop the other process or change the port via `PORT=...` when starting the proxy (see `examples/backend-proxy/server.js`).
+
+### Build and preview
+```bat
+npm run build
+npm run preview
+```
+
+### Providing credentials
+- Paste your HubSpot Private App Token into the sidebar; it will be validated.
+- Optionally paste your OpenAI API key for the Geo Corrector tool.
+- Or pass both via URL query params:
+  - `?hubSpotToken=<token>&openAiKey=<key>`
 
 ## Notes on the refactor
 - The original single `app.jsx` was split into modular components with no UI or behavioral changes.
@@ -111,6 +97,7 @@ npm run dev
 - If buttons are disabled, verify the HubSpot token is valid (the check icon next to the field will turn green if valid).
 - If Geo Corrector doesn’t run, ensure an OpenAI key is provided and your `/api/openai` proxy is responding.
 - If lists look empty, confirm the `/api/hubspot` proxy is reachable and returning data.
+ - If the proxy fails to start with `EADDRINUSE`, another process is already listening on that port. Either stop it or set a different `PORT` environment variable when starting the proxy.
 
 ## Copilot docs
 - Agent instructions: `.github/copilot-instructions.md`
