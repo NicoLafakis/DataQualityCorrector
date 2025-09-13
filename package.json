@@ -14,6 +14,9 @@
     "install:proxy": "npm --prefix examples/backend-proxy install",
     "build": "vite build",
     "preview": "vite preview",
+    "smoke:proxy": "node --experimental-fetch scripts/smoke-proxy.mjs",
+    "smoke:hubspot": "node --experimental-fetch scripts/smoke-hubspot.mjs",
+    "smoke:openai": "node --experimental-fetch scripts/smoke-openai.mjs",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {

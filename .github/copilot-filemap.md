@@ -1,3 +1,20 @@
+# File Map (for Agents)
+
+`app.jsx` – app shell, token fields, tab routing, validation
+`main.jsx` – Vite entry; renders `App`
+`index.html` – HTML with Tailwind CDN
+`lib/api.js` – proxy request helpers, retry/backoff, HubSpot pacing
+`components/AnomalyDetector.jsx`
+`components/PropertyFillRate.jsx`
+`components/GeoCorrector.jsx`
+`components/DuplicateFinder.jsx`
+`components/icons.jsx`
+`examples/backend-proxy/server.js` – Express proxy
+`vite.config.mjs` – dev proxy configuration
+`README.md` – usage & dev guide
+`PROGRESS.md` – change log
+`AGENT_GUIDE.md` – agent operations
+`scripts/smoke-*.mjs` – smoke tests for proxy, HubSpot, OpenAI
 # Copilot File Map — DataQualityCorrector
 
 An agent-friendly map of each file with responsibilities, important symbols, and how to extend safely.

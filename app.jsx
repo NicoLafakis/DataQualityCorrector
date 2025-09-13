@@ -14,6 +14,23 @@ export default function App() {
     const [tokenValid, setTokenValid] = useState(null);
     const [isCheckingToken, setIsCheckingToken] = useState(false);
 
+    // Dev-only telemetry for token validation
+    const isDev = import.meta.env && import.meta.env.DEV;
+    if (isDev && typeof window !== 'undefined') {
+        window.__DQC_TELEMETRY__ = window.__DQC_TELEMETRY__ || { hsValidationSuccess: 0, hsValidationFailure: 0 };
+    }
+    const devLogValidation = (result) => {
+        if (!isDev || typeof window === 'undefined') return;
+        const t = window.__DQC_TELEMETRY__;
+        if (!t) return;
+        if (result === 'success') t.hsValidationSuccess += 1;
+        if (result === 'failure') t.hsValidationFailure += 1;
+        console.log('[DQC][DEV] HubSpot token validation:', result, {
+            success: t.hsValidationSuccess,
+            failure: t.hsValidationFailure,
+        });
+    };
+
     // Read API keys from URL or sessionStorage on initial load
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -39,6 +56,7 @@ export default function App() {
                         try {
                             await hubSpotApiRequest('/oauth/v2/private-apps/get/access-token-info', 'POST', clean, { tokenKey: clean });
                             setTokenValid(true);
+                            devLogValidation('success');
                             return; // success
                         } catch (_e1) {
                             // fall through to OAuth access token metadata
@@ -48,8 +66,10 @@ export default function App() {
                         // GET /oauth/v1/access-tokens/{token}
                         await hubSpotApiRequest('/oauth/v1/access-tokens/' + clean, 'GET', clean);
                         setTokenValid(true);
+                        devLogValidation('success');
                     } catch (error) {
                         setTokenValid(false);
+                        devLogValidation('failure');
                     } finally {
                         setIsCheckingToken(false);
                     }

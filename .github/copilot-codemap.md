@@ -62,3 +62,24 @@ This codemap orients AI agents to the structure, responsibilities, and flows of 
 - Disabled buttons usually mean token validation failed (check icon in sidebar).
 - `GeoCorrector` requires an OpenAI key; the action button is disabled without it.
 - Large portals may require significant time for pagination-heavy tasks.
+# Code Map (for Agents)
+
+Entry: `main.jsx` -> renders `App` from `app.jsx`
+Shell: `app.jsx` -> sidebar, token fields, tab routing
+API helpers: `lib/api.js`
+  - `apiRequest(endpoint, method, body?)` -> calls `/api/*` with retry/backoff
+  - `hubSpotApiRequest(path, method, token, body?)` -> queued + paced
+  - `openAiApiRequest(apiKey, prompt)`
+Components:
+  - `AnomalyDetector.jsx` – scans email/website
+  - `PropertyFillRate.jsx` – property fill rates
+  - `GeoCorrector.jsx` – geodata correction via OpenAI
+  - `DuplicateFinder.jsx` – contact dedupe + merges
+  - `icons.jsx` – shared icons + `Spinner`
+Proxy example: `examples/backend-proxy/server.js`
+Dev tooling: `vite.config.mjs`, `package.json` scripts
+
+Key flows
+Token validation: `app.jsx` -> HubSpot (introspection then OAuth metadata)
+Data calls: components -> `hubSpotApiRequest` -> proxy
+OpenAI: components -> `openAiApiRequest` -> proxy
