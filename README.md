@@ -43,6 +43,65 @@ This repository is a simple, front-end React setup. Use your existing tooling to
 - Your dev server should serve `app.jsx` as the entry (or import it from your own entry point).
 - The two API proxy endpoints listed above must be available at runtime.
 
+### Quick start (Vite example)
+Below is a minimal setup to run this project locally using Vite on Windows (`cmd.exe`). This repo doesn’t include build tooling by design, so you can keep this alongside your backend proxy.
+
+1) Initialize a Vite React app next to this folder (or inside if you prefer). From the repo root:
+
+```bat
+:: Ensure Node.js >= 18
+node -v
+
+:: Create a lightweight Vite scaffold
+npm create vite@latest dqc-vite -- --template react
+cd dqc-vite
+npm install
+npm install @vitejs/plugin-react --save-dev
+```
+
+2) Point the Vite app at this repo’s `app.jsx` by replacing the default entry. In `dqc-vite/src/main.jsx`:
+
+```jsx
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import App from '../../DataQualityCorrector/app.jsx'
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+)
+```
+
+3) Keep the default `index.html` (created by Vite) which includes a `div#root` and script to `src/main.jsx`.
+
+4) Configure the dev proxy so frontend calls are forwarded to your backend proxy server. Create or edit `dqc-vite/vite.config.js`:
+
+```js
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+const target = 'http://localhost:3001' // your backend proxy host/port
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    proxy: {
+      '/api/hubspot': { target, changeOrigin: true },
+      '/api/openai': { target, changeOrigin: true },
+    },
+  },
+})
+```
+
+5) Start Vite:
+
+```bat
+npm run dev
+```
+
+6) Open the app in the browser (the URL Vite prints, typically `http://localhost:5173`). Provide your HubSpot token and (optionally) OpenAI key in the sidebar or via query params, and ensure your backend proxy serves `POST /api/hubspot` and `POST /api/openai`.
+
 ## Notes on the refactor
 - The original single `app.jsx` was split into modular components with no UI or behavioral changes.
 - Shared utilities and icons were extracted to `lib/api.js` and `components/icons.jsx`.
@@ -52,6 +111,11 @@ This repository is a simple, front-end React setup. Use your existing tooling to
 - If buttons are disabled, verify the HubSpot token is valid (the check icon next to the field will turn green if valid).
 - If Geo Corrector doesn’t run, ensure an OpenAI key is provided and your `/api/openai` proxy is responding.
 - If lists look empty, confirm the `/api/hubspot` proxy is reachable and returning data.
+
+## Copilot docs
+- Agent instructions: `.github/copilot-instructions.md`
+- Code map: `.github/copilot-codemap.md`
+- File map: `.github/copilot-filemap.md`
 
 ## License
 This project contains original work by the repository owner. Please consult the repository’s license (if present) or contact the owner for usage terms.
