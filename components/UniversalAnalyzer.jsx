@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { hubSpotApiRequest } from '../lib/api';
 import { Spinner } from './icons';
+import { toCSV, downloadCSV } from '../lib/csv';
+import { recordScan } from '../lib/history';
 
 // Universal analyzer that discovers CRM objects (standard + custom) via schemas
 // and computes per-property fill rates with gentle batching and pagination.
@@ -93,6 +95,9 @@ export default function UniversalAnalyzer({ token }) {
         await sleep(300);
       }
       setRows(out);
+      // Record history summary for trends (counts only to keep it light)
+      const filledSum = out.reduce((acc, r) => acc + (r.filled || 0), 0);
+      recordScan('universal-analyzer', selected, { properties: out.length, total, filledSum });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -119,6 +124,16 @@ export default function UniversalAnalyzer({ token }) {
           <button onClick={startScan} disabled={isScanning || !selected} className="bg-blue-600 text-white px-4 py-2 rounded-md disabled:bg-blue-300 flex items-center">
             {isScanning ? <Spinner /> : 'Analyze Properties'}
           </button>
+          <button
+            onClick={() => {
+              if (rows.length === 0) return;
+              const csv = toCSV(rows.map((r) => ({ label: r.label, name: r.name, group: r.group, type: r.type, fieldType: r.fieldType, filled: r.filled, rate: r.rate })),
+                ['label', 'name', 'group', 'type', 'fieldType', 'filled', 'rate']);
+              downloadCSV(`${selected}-property-fill-rates.csv`, csv);
+            }}
+            disabled={isScanning || rows.length === 0}
+            className="bg-gray-600 text-white px-3 py-2 rounded-md disabled:bg-gray-300"
+          >Export CSV</button>
           {isLoading && <span className="text-gray-500 flex items-center"><Spinner /> Loading objects…</span>}
           <span className="text-sm text-gray-600">Total: {summary.total} • Analyzed: {summary.analyzed}</span>
         </div>

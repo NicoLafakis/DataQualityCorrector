@@ -1,161 +1,59 @@
-# Copilot Instructions for DataQualityCorrector
+<!-- Guidance for AI coding agents working on DataQualityCorrector. Keep this file short and specific. -->
+# Copilot instructions — DataQualityCorrector
 
-Purpose: Enable AI coding agents to contribute productively to this small, client-side React app that audits and fixes HubSpot CRM data quality using two backend proxy endpoints.
+Quick orientation
 
-## Architecture & Data Flow
-- Single-page React app. Entry is `app.jsx` which renders a sidebar + tabbed main area.
-- Four feature modules under `components/`:
-  - `AnomalyDetector.jsx` — scans contacts/companies for invalid `email`/`website` formats.
-  - `PropertyFillRate.jsx` — computes fill rates for all properties on contacts/companies/deals/tickets.
-  - `GeoCorrector.jsx` — proposes location fixes (`city/state/country`) using OpenAI; can batch update via HubSpot.
-  - `DuplicateFinder.jsx` — finds and bulk merges contact duplicates by email (newest record kept as primary).
-- All external calls go through proxies defined in `lib/api.js`:
-  - `hubSpotApiRequest(path, method, token, body?)` → POST `/api/hubspot` with `{ path, method, token, body }`.
-  - `openAiApiRequest(apiKey, prompt)` → POST `/api/openai` with `{ apiKey, prompt }`.
-- The UI never hits HubSpot or OpenAI directly. Token/key live only in the browser and are sent to the proxy.
+- Purpose: client-side React app for auditing and fixing HubSpot CRM data via two backend proxy endpoints: `POST /api/hubspot` and `POST /api/openai`.
+- Entry points: `main.jsx` -> `app.jsx`. Tools live under `components/` and use `lib/api.js` for all external calls.
 
-## Configuration & Runtime Assumptions
-- HubSpot Private App Token is required to enable tools. Token validation calls `/oauth/v1/access-tokens/{token}` via the proxy.
-- Optional OpenAI API key is required only for `GeoCorrector`.
-- Both can be provided via query params: `?hubSpotToken=<token>&openAiKey=<key>`.
-- The hosting environment must expose two endpoints: `POST /api/hubspot` and `POST /api/openai`.
+What you must know before editing
 
-## Development Workflow
-- This repo is front-end only; bring your own dev server/bundler (e.g., Vite). Typical setup:
-  - Serve `app.jsx` as the entry (or import it from your own entry point).
-  - Ensure your dev server proxies `/api/hubspot` and `/api/openai` to your backend.
-- No additional client deps are required by this refactor. Styling uses Tailwind utility classes already present in markup (no config in this repo).
+- NEVER call HubSpot/OpenAI directly from the UI — use `hubSpotApiRequest` and `openAiApiRequest` in `lib/api.js` which POST to the proxy.
+- Token management: `app.jsx` reads `hubSpotToken` and `openAiKey` from URL or `sessionStorage`; token validation behavior is implemented there (private-app introspection then OAuth metadata).
+- Rate-limiting: `lib/api.js` contains fetch retry/backoff and a HubSpot scheduler (`enqueueHubSpot`) that spaces requests (baseline ~350ms). Reuse these helpers for any HubSpot interactions.
 
-## Patterns & Conventions
-- Data fetching:
-  - Use `hubSpotApiRequest` for any HubSpot CRM v3 operation, including pagination. Example:
-    - `GET /crm/v3/objects/{type}?limit=100&properties=...&after=...` loop until `paging.next.after` is falsy.
-  - Use `openAiApiRequest` only in features that need LLM assistance (keep prompts concise and JSON-oriented).
-- Error handling: Bubble `err.message` to component state and render simple `<p className="text-red-500">` messages.
-- Loading states: Prefer the shared `Spinner` from `components/icons.jsx` and disable action buttons while loading.
-- Batch operations: Follow HubSpot batch formats used in `GeoCorrector` (`/crm/v3/objects/contacts/batch/update`).
-- UX consistency: Keep the sidebar/tab model from `app.jsx`. New tools should be added to the `TABS` map with icon + label.
+Dev & run commands (Windows / `cmd.exe`)
 
-## Examples from Codebase
-- Pagination pattern (see `AnomalyDetector`/`DuplicateFinder`):
-  - Build path with `limit=100` and carry `after` cursor until exhausted; push `data.results` into an accumulator array.
-- Duplicate merge pattern (see `DuplicateFinder`):
-  - Sort group by `createdate` desc, choose newest as primary, then POST to `/crm/v3/objects/contacts/{primaryId}/merge` for each remaining id.
-- Fill-rate computation (see `PropertyFillRate`):
-  - Get `total` via `search`, iterate `properties` list, run `HAS_PROPERTY` searches per property, compute percentage.
+- One-time: `npm install` then `npm run install:proxy` to install the example proxy (`examples/backend-proxy`).
+- Run frontend + proxy: `npm run dev` (starts Vite frontend at `http://localhost:5173` and example proxy at `http://localhost:3001`).
+- Smoke scripts: `npm run smoke:proxy`, `npm run smoke:hubspot`, `npm run smoke:openai` for quick integration checks.
 
-## When Extending the App
-- Add new features under `components/` and wire into `TABS` in `app.jsx`.
-- Reuse `hubSpotApiRequest` and shared UI pieces; keep backend-agnostic by calling only the two proxies.
-- Validate inputs client-side (e.g., email/URL regex) before making write calls.
+Project-specific conventions
 
-## Gotchas
-- If buttons are disabled, token validation likely failed — see the check icon in the sidebar (`app.jsx`).
-- `GeoCorrector` requires a non-empty `openAiKey`; otherwise the action button is disabled and a notice is shown.
-- Large portals: API-heavy features (fill rates, duplicates) may take time; ensure pagination and button disabling are respected.
+- Always call external services through the proxy. See `lib/api.js` for `API_BASE` handling (Vite dev proxy vs `VITE_API_BASE` / `window.__DQC_API_BASE__`).
+- UI patterns: show `Spinner` while async work and disable action buttons to avoid duplicate requests (see `components/icons.jsx` and usage across components).
+- Error surface: bubble errors with `err.message` and render in red (`<p className="text-red-500">`). Follow existing error patterns.
+- Pagination: use `limit=100` and loop on `paging.next.after` when scanning objects (see `AnomalyDetector.jsx` and `UniversalAnalyzer.jsx`).
 
-## Key Files
-- `app.jsx` — shell, nav, config panel, token validation, feature routing.
-- `lib/api.js` — proxy request helpers and shared error handling.
-- `components/*` — isolated feature implementations and shared `icons.jsx`.
-- `PROGRESS.md` — recent refactor notes; review before structural changes.
+Examples to copy/adapt
 
-## Local dev proxy (Vite example)
-If you use Vite, ensure your dev server proxies the required endpoints to your backend proxy:
+- Validate token (from `app.jsx`):
+  - Try `POST /oauth/v2/private-apps/get/access-token-info` with `{ tokenKey }`, fallback to `GET /oauth/v1/access-tokens/{token}`.
+- HubSpot search for property presence (from `UniversalAnalyzer.jsx`):
+  - POST `/crm/v3/objects/{objectType}/search` with `filterGroups: [{ filters: [{ propertyName, operator: 'HAS_PROPERTY' }] }]` and read `total`.
+- Geo-batch update pattern (from `GeoCorrector.jsx`): use `/crm/v3/objects/{objectType}/batch/update` with array of `id`/`properties` payloads.
 
-```js
-// vite.config.js
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
+Safety notes for agents
 
-const target = 'http://localhost:3001'; // your backend proxy host/port
+- Do not embed secrets in code. Use `sessionStorage`, query params, or environment variables for local runs. Example proxy expects `apiKey`/`token` in request bodies.
+- Keep UI changes minimal unless the task is explicitly about UX: prefer functional, minimal changes that follow existing class names and layout.
 
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    proxy: {
-      '/api/hubspot': { target, changeOrigin: true },
-      '/api/openai': { target, changeOrigin: true },
-    },
-  },
-});
-```
+Files to inspect first
 
-## Adding a new tool tab
-1) Create a component under `components/`, reusing shared patterns:
+- `app.jsx` (tabs, token handling)
+- `lib/api.js` (retry, scheduler, API boundary)
+- `components/*.jsx` (patterns for pagination, batching, UI state)
+- `examples/backend-proxy/server.js` (proxy contract)
+- `AGENT_GUIDE.md` and `README.md` (quick commands & conventions)
 
-```jsx
-// components/MyNewTool.jsx
-import React, { useState, useCallback } from 'react';
-import { hubSpotApiRequest } from '../lib/api';
-import { Spinner } from './icons';
+If you add a new tool
 
-export default function MyNewTool({ token }) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [items, setItems] = useState([]);
+- Add `components/MyTool.jsx`, follow the async/spinner/error patterns, then wire it into `TABS` in `app.jsx` with an icon from `components/icons.jsx`.
 
-  const run = useCallback(async () => {
-    setIsLoading(true);
-    setError('');
-    try {
-      const body = { limit: 1, filterGroups: [] };
-      const { results = [] } = await hubSpotApiRequest('/crm/v3/objects/contacts/search', 'POST', token, body);
-      setItems(results);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [token]);
+When done
 
-  return (
-    <div className="bg-white p-4 rounded-lg shadow-sm">
-      <button onClick={run} disabled={isLoading} className="bg-blue-600 text-white px-4 py-2 rounded-md disabled:bg-blue-300 flex items-center">
-        {isLoading ? <Spinner /> : 'Run My Tool'}
-      </button>
-      {error && <p className="text-red-500">{error}</p>}
-      {!isLoading && items.length > 0 && (
-        <p className="text-gray-700 mt-2">Fetched {items.length} item(s).</p>
-      )}
-    </div>
-  );
-}
-```
+- Run `npm run dev` locally and exercise the feature with the example proxy, or run smoke scripts to validate integration. Report any runtime failures with exact console errors and stack traces.
 
-2) Wire it into `app.jsx`:
+Question / missing info
 
-```jsx
-// app.jsx (imports)
-import MyNewTool from './components/MyNewTool';
-import { ShieldCheckIcon } from './components/icons'; // or another icon
-
-// app.jsx (inside TABS)
-const TABS = {
-  // ...existing tabs
-  myTool: { label: 'My Tool', icon: <ShieldCheckIcon />, component: <MyNewTool token={hubSpotToken} /> },
-};
-```
-
-Notes:
-- New tabs automatically respect the token gating in the sidebar. If your feature needs OpenAI, pass `openAiKey` as in `GeoCorrector`.
-- For pagination-heavy features, copy the `limit=100` + `after` loop pattern from `AnomalyDetector`/`DuplicateFinder`.
-
-## Extension checklist
-- Entry and routing
-  - Add new tools under `components/` and wire into `TABS` in `app.jsx` with an icon and label.
-  - Gate actions behind a valid HubSpot token; optionally require `openAiKey` where applicable.
-- API usage
-  - Call HubSpot via `hubSpotApiRequest(path, method, token, body?)` only; never call HubSpot directly.
-  - For heavy reads, use `limit=100` with `after` pagination; accumulate `data.results` until no `paging.next.after`.
-  - Prefer batch write endpoints where available (see `GeoCorrector` for `batch/update`).
-- UX behaviors
-  - Show loading with `Spinner` and disable buttons while in-flight.
-  - Surface errors via `err.message` in a `<p className="text-red-500">`.
-  - Keep UI consistent with Tailwind utility classes used elsewhere.
-- Data patterns
-  - When analyzing properties (like fill rate), fetch properties via `/crm/v3/properties/{objectType}` and run `HAS_PROPERTY` searches to compute rates.
-  - For dedupe flows, sort by `createdate` descending and merge into the newest record (see `DuplicateFinder`).
-- Configuration
-  - Respect query params `hubSpotToken` and `openAiKey` already handled in `app.jsx`.
-  - Do not store tokens/keys server-side; the UI passes them to a proxy only.
+- If a proxy contract is unclear, open `examples/backend-proxy/server.js` to confirm expected request/response shapes.

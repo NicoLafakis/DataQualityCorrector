@@ -12,6 +12,7 @@ import PropertyInsights from './components/PropertyInsights';
 import EnrichmentScanner from './components/EnrichmentScanner';
 import AutomationRules from './components/AutomationRules';
 import UniversalAnalyzer from './components/UniversalAnalyzer';
+import ScanHistory from './components/ScanHistory';
 
 // --- MAIN APP COMPONENT ---
 export default function App() {
@@ -104,7 +105,8 @@ export default function App() {
         anomalies: { label: 'Anomalies', icon: <ShieldCheckIcon />, component: <AnomalyDetector token={hubSpotToken} /> },
         formatting: { label: 'Formatting', icon: <ShieldCheckIcon />, component: <FormattingIssues token={hubSpotToken} /> },
         fillRate: { label: 'Fill Rate', icon: <ChartPieIcon />, component: <PropertyFillRate token={hubSpotToken} /> },
-        universal: { label: 'Universal Analyzer', icon: <ChartPieIcon />, component: <UniversalAnalyzer token={hubSpotToken} /> },
+    universal: { label: 'Universal Analyzer', icon: <ChartPieIcon />, component: <UniversalAnalyzer token={hubSpotToken} /> },
+    history: { label: 'Scan History', icon: <ChartPieIcon />, component: <ScanHistory /> },
         propertyInsights: { label: 'Property Insights', icon: <ChartPieIcon />, component: <PropertyInsights token={hubSpotToken} /> },
         enrichment: { label: 'Enrichment', icon: <GlobeIcon />, component: <EnrichmentScanner token={hubSpotToken} openAiKey={openAiKey} /> },
         duplicates: { label: 'Contact Duplicates', icon: <DocumentDuplicateIcon />, component: <DuplicateFinder token={hubSpotToken} /> },
