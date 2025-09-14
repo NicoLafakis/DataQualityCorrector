@@ -2,6 +2,8 @@ import React, { useState, useCallback } from 'react';
 import { hubSpotApiRequest } from '../lib/api';
 import { Spinner, CheckCircleIcon, ExclamationCircleIcon } from './icons';
 import { recordAction } from '../lib/history';
+import { recordFailure } from '../lib/history';
+import MergeModal from './MergeModal';
 import ProgressBar from './ProgressBar';
 
 const DuplicateFinder = ({ token }) => {
@@ -53,34 +55,64 @@ const DuplicateFinder = ({ token }) => {
   }, [token]);
 
   const [progress, setProgress] = useState(0);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalRecords, setModalRecords] = useState([]);
+  const [selectedGroupIndex, setSelectedGroupIndex] = useState(null);
 
-  const handleSuggestMerge = async (group) => {
-    if (group.length < 2) return;
+  // Open merge modal for a specific duplicate group
+  const openMergeModal = (group, index) => {
+    setModalRecords(group);
+    setSelectedGroupIndex(index);
+    setModalVisible(true);
+  };
+
+  // Execute merges after modal confirm(primaryId, mergeIds)
+  const executeMerge = async (primaryId, mergeIds) => {
+    if (!primaryId || !mergeIds || mergeIds.length === 0) return;
+    setModalVisible(false);
     setIsMerging(true);
     setError('');
     try {
-      const sortedGroup = group.sort((a, b) => new Date(b.properties.createdate) - new Date(a.properties.createdate));
-      const primaryRecord = sortedGroup[0];
-      const recordsToMerge = sortedGroup.slice(1);
-
       // capture snapshots for undo
       const snapshots = [];
-      for (const r of [primaryRecord, ...recordsToMerge]) {
-        const obj = await hubSpotApiRequest(`/crm/v3/objects/contacts/${r.id}`, 'GET', token);
-        snapshots.push({ id: r.id, properties: obj.properties || {} });
+      const idsToFetch = [primaryId, ...mergeIds];
+      for (const id of idsToFetch) {
+        try {
+          const obj = await hubSpotApiRequest(`/crm/v3/objects/contacts/${id}`, 'GET', token);
+          snapshots.push({ id, properties: obj.properties || {} });
+        } catch (err) {
+          // flag and skip malformed records
+          recordFailure('fetch_snapshot_failed', { id, error: err.message });
+        }
       }
 
       const undoPayload = {
         action: 'recreate',
         payload: {
-          patch: [{ id: primaryRecord.id, properties: snapshots[0].properties }],
-          create: recordsToMerge.map((t, idx) => ({ properties: snapshots[idx + 1].properties })),
-        },
+          patch: [{ id: primaryId, properties: snapshots.find((s) => s.id === primaryId)?.properties || {} }],
+          create: snapshots.filter((s) => s.id !== primaryId).map((s) => ({ properties: s.properties }))
+        }
       };
 
-      const payload = { primaryId: primaryRecord.id, mergeIds: recordsToMerge.map((r) => r.id), source: 'email' };
-      recordAction('merge_suggestion', primaryRecord.id, payload, undoPayload);
-      setStatus('Merge suggestion recorded to review queue');
+      // perform merges sequentially and respect rate limits
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      for (const mid of mergeIds) {
+        try {
+          setMergeStatus((prev) => ({ ...prev, [mid]: 'merging' }));
+          await hubSpotApiRequest(`/crm/v3/objects/contacts/${primaryId}/merge`, 'POST', token, { objectIdToMerge: mid });
+          setMergeStatus((prev) => ({ ...prev, [mid]: 'merged' }));
+          // small pause to avoid hitting limits
+          await sleep(400);
+        } catch (err) {
+          setMergeStatus((prev) => ({ ...prev, [mid]: 'failed' }));
+          recordFailure('merge_failed', { primaryId, mergeId: mid, error: err.message });
+        }
+      }
+
+      // record action for history
+      const payload = { primaryId, mergeIds, source: 'email' };
+      recordAction('merged', primaryId, payload, undoPayload);
+      setStatus('Merge completed.');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -132,9 +164,18 @@ const DuplicateFinder = ({ token }) => {
                     </li>
                   ))}
                 </ul>
-                <button onClick={() => handleSuggestMerge(group)} disabled={isMerging} className="mt-4 bg-yellow-500 text-white px-3 py-1 text-sm rounded-md hover:bg-yellow-600 disabled:bg-yellow-300">
-                  Suggest Merge
-                </button>
+                        <div className="flex items-center justify-between">
+                          <button onClick={() => openMergeModal(group, index)} disabled={isMerging} className="mt-4 bg-blue-600 text-white px-3 py-1 text-sm rounded-md hover:bg-blue-700 disabled:bg-blue-300">Select & Merge</button>
+                          <button onClick={() => {
+                            // lightweight fallback: record suggestion for review queue
+                            const sorted = group.slice().sort((a,b) => new Date(b.properties.createdate) - new Date(a.properties.createdate));
+                            const primary = sorted[0];
+                            const rest = sorted.slice(1);
+                            const payload = { primaryId: primary.id, mergeIds: rest.map((r) => r.id), source: 'email' };
+                            recordAction('merge_suggestion', primary.id, payload, null);
+                            setStatus('Merge suggestion recorded to review queue');
+                          }} disabled={isMerging} className="mt-4 bg-yellow-500 text-white px-3 py-1 text-sm rounded-md hover:bg-yellow-600 disabled:bg-yellow-300">Suggest Merge</button>
+                        </div>
               </div>
             ))}
           </div>
