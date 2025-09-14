@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { hubSpotApiRequest } from '../lib/api';
 import { Spinner } from './icons';
 
@@ -7,6 +7,20 @@ const PropertyFillRate = ({ token }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [objectType, setObjectType] = useState('contacts');
+  const [schemas, setSchemas] = useState([]);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await hubSpotApiRequest('/crm/v3/schemas', 'GET', token);
+        const list = (res.results || []).map((s) => ({ name: s.name, labels: s.labels }));
+        const priority = ['contacts', 'companies', 'deals', 'tickets'];
+        list.sort((a, b) => (priority.indexOf(a.name) + 999) - (priority.indexOf(b.name) + 999) || a.name.localeCompare(b.name));
+        setSchemas(list);
+      } catch {}
+    };
+    load();
+  }, [token]);
 
   const calculateRates = useCallback(async () => {
     setIsLoading(true);
@@ -63,10 +77,16 @@ const PropertyFillRate = ({ token }) => {
       <div className="bg-white p-4 rounded-lg shadow-sm">
         <div className="flex items-center space-x-4 mb-4">
           <select value={objectType} onChange={(e) => setObjectType(e.target.value)} className="p-2 border rounded-md">
-            <option value="contacts">Contacts</option>
-            <option value="companies">Companies</option>
-            <option value="deals">Deals</option>
-            <option value="tickets">Tickets</option>
+            {schemas.length > 0 ? (
+              schemas.map((s) => <option key={s.name} value={s.name}>{s.labels?.plural || s.name}</option>)
+            ) : (
+              <>
+                <option value="contacts">Contacts</option>
+                <option value="companies">Companies</option>
+                <option value="deals">Deals</option>
+                <option value="tickets">Tickets</option>
+              </>
+            )}
           </select>
           <button onClick={calculateRates} disabled={isLoading} className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-blue-300 flex items-center">
             {isLoading ? <Spinner /> : 'Calculate Fill Rates'}

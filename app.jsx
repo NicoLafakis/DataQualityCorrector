@@ -11,6 +11,7 @@ import FormattingIssues from './components/FormattingIssues';
 import PropertyInsights from './components/PropertyInsights';
 import EnrichmentScanner from './components/EnrichmentScanner';
 import AutomationRules from './components/AutomationRules';
+import UniversalAnalyzer from './components/UniversalAnalyzer';
 
 // --- MAIN APP COMPONENT ---
 export default function App() {
@@ -103,6 +104,7 @@ export default function App() {
         anomalies: { label: 'Anomalies', icon: <ShieldCheckIcon />, component: <AnomalyDetector token={hubSpotToken} /> },
         formatting: { label: 'Formatting', icon: <ShieldCheckIcon />, component: <FormattingIssues token={hubSpotToken} /> },
         fillRate: { label: 'Fill Rate', icon: <ChartPieIcon />, component: <PropertyFillRate token={hubSpotToken} /> },
+        universal: { label: 'Universal Analyzer', icon: <ChartPieIcon />, component: <UniversalAnalyzer token={hubSpotToken} /> },
         propertyInsights: { label: 'Property Insights', icon: <ChartPieIcon />, component: <PropertyInsights token={hubSpotToken} /> },
         enrichment: { label: 'Enrichment', icon: <GlobeIcon />, component: <EnrichmentScanner token={hubSpotToken} openAiKey={openAiKey} /> },
         duplicates: { label: 'Contact Duplicates', icon: <DocumentDuplicateIcon />, component: <DuplicateFinder token={hubSpotToken} /> },
@@ -135,7 +137,7 @@ export default function App() {
                                 </button>
                             ))}
                         </nav>
-                        
+
                         <div className="p-4 mt-8 bg-white border border-gray-200 rounded-lg shadow-sm">
                              <h3 className="mb-3 text-lg font-semibold text-gray-800">Configuration</h3>
                              <div className="space-y-4">
@@ -172,7 +174,7 @@ export default function App() {
                              </div>
                         </div>
                     </aside>
-                    
+
                     <div className="flex-1">
                         {tokenValid ? (
                             TABS[activeTab].component

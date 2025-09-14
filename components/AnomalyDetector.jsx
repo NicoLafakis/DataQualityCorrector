@@ -1,9 +1,11 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { hubSpotApiRequest } from '../lib/api';
 import { Spinner } from './icons';
 
 const AnomalyDetector = ({ token }) => {
   const [objectType, setObjectType] = useState('contacts');
+  const [schemas, setSchemas] = useState([]);
+  const [availableProps, setAvailableProps] = useState([]);
   const [anomalies, setAnomalies] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -18,13 +20,42 @@ const AnomalyDetector = ({ token }) => {
     }
   };
 
+  // Load schemas for dynamic object selection
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await hubSpotApiRequest('/crm/v3/schemas', 'GET', token);
+        const list = (res.results || []).map((s) => ({ name: s.name, labels: s.labels }));
+        const priority = ['contacts', 'companies', 'deals', 'tickets'];
+        list.sort((a, b) => (priority.indexOf(a.name) + 999) - (priority.indexOf(b.name) + 999) || a.name.localeCompare(b.name));
+        setSchemas(list);
+      } catch {}
+    };
+    load();
+  }, [token]);
+
+  // Load available properties for the selected object for smarter scans
+  useEffect(() => {
+    const loadProps = async () => {
+      try {
+        const propRes = await hubSpotApiRequest(`/crm/v3/properties/${objectType}`, 'GET', token);
+        const props = propRes.results || propRes || [];
+        setAvailableProps(props);
+      } catch { setAvailableProps([]); }
+    };
+    if (objectType) loadProps();
+  }, [objectType, token]);
+
   const findAnomalies = useCallback(async () => {
     setIsLoading(true);
     setError('');
     setAnomalies([]);
 
     try {
-      const propertiesToFetch = ['firstname', 'lastname', 'email', 'website', 'hs_object_id'];
+      // Heuristically choose relevant props by name if present for the selected object
+      const propNames = new Set((availableProps || []).map((p) => p.name));
+      const wanted = ['firstname', 'lastname', 'email', 'website', 'domain'];
+      const propertiesToFetch = ['hs_object_id', ...wanted.filter((n) => propNames.has(n))];
       let allRecords = [];
       let after = undefined;
       const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -47,6 +78,9 @@ const AnomalyDetector = ({ token }) => {
         if (properties.website && !isValidUrl(properties.website)) {
           foundAnomalies.push({ id: properties.hs_object_id, property: 'website', value: properties.website, reason: 'Invalid URL format' });
         }
+        if (!properties.website && properties.domain) {
+          try { new URL(`http://${properties.domain}`); } catch { foundAnomalies.push({ id: properties.hs_object_id, property: 'domain', value: properties.domain, reason: 'Possibly invalid domain' }); }
+        }
       });
 
       setAnomalies(foundAnomalies);
@@ -63,8 +97,16 @@ const AnomalyDetector = ({ token }) => {
       <div className="bg-white p-4 rounded-lg shadow-sm">
         <div className="flex items-center space-x-4 mb-4">
           <select value={objectType} onChange={(e) => setObjectType(e.target.value)} className="p-2 border rounded-md">
-            <option value="contacts">Contacts</option>
-            <option value="companies">Companies</option>
+            {schemas.length > 0 ? (
+              schemas.map((s) => (
+                <option key={s.name} value={s.name}>{s.labels?.plural || s.name}</option>
+              ))
+            ) : (
+              <>
+                <option value="contacts">Contacts</option>
+                <option value="companies">Companies</option>
+              </>
+            )}
           </select>
           <button onClick={findAnomalies} disabled={isLoading} className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-blue-300 flex items-center">
             {isLoading ? <Spinner /> : 'Scan for Anomalies'}
