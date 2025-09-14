@@ -2,12 +2,16 @@ import React, { useState, useCallback } from 'react';
 import { hubSpotApiRequest } from '../lib/api';
 import { Spinner, CheckCircleIcon, ExclamationCircleIcon } from './icons';
 import { jaroWinkler, normalizeKey } from '../lib/fuzzy';
-import { recordAction } from '../lib/history';
+import { recordAction, recordFailure } from '../lib/history';
+import MergeModal from './MergeModal';
 import ProgressBar from './ProgressBar';
 
 // Fuzzy duplicate finder: compares name + email + company using Jaro-Winkler
 export default function FuzzyDuplicateFinder({ token }) {
   const [sets, setSets] = useState([]);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalRecords, setModalRecords] = useState([]);
+  const [selectedGroupIndex, setSelectedGroupIndex] = useState(null);
   const [loading, setLoading] = useState(false);
   const [merging, setMerging] = useState(false);
   const [error, setError] = useState('');
@@ -112,6 +116,56 @@ export default function FuzzyDuplicateFinder({ token }) {
     }
   };
 
+  const openMergeModal = (group, index) => {
+    setModalRecords(group);
+    setSelectedGroupIndex(index);
+    setModalVisible(true);
+  };
+
+  const executeMerge = async (primaryId, mergeIds) => {
+    if (!primaryId || !mergeIds || mergeIds.length === 0) return;
+    setModalVisible(false);
+    setMerging(true);
+    setError('');
+    try {
+      const snapshots = [];
+      for (const id of [primaryId, ...mergeIds]) {
+        try {
+          const obj = await hubSpotApiRequest(`/crm/v3/objects/contacts/${id}`, 'GET', token);
+          snapshots.push({ id, properties: obj.properties || {} });
+        } catch (err) {
+          recordFailure('fetch_snapshot_failed', { id, error: err.message, source: 'fuzzy' });
+        }
+      }
+
+      const undoPayload = {
+        action: 'recreate',
+        payload: {
+          patch: [{ id: primaryId, properties: snapshots.find((s) => s.id === primaryId)?.properties || {} }],
+          create: snapshots.filter((s) => s.id !== primaryId).map((s) => ({ properties: s.properties }))
+        }
+      };
+
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      for (const mid of mergeIds) {
+        try {
+          await hubSpotApiRequest(`/crm/v3/objects/contacts/${primaryId}/merge`, 'POST', token, { objectIdToMerge: mid });
+          await sleep(400);
+        } catch (err) {
+          recordFailure('merge_failed', { primaryId, mergeId: mid, error: err.message, source: 'fuzzy' });
+        }
+      }
+
+      const payload = { primaryId, mergeIds, source: 'fuzzy' };
+      recordAction('merged', primaryId, payload, undoPayload);
+      setStatus('Merge completed.');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setMerging(false);
+    }
+  };
+
   return (
     <div>
       <h3 className="text-xl font-semibold text-gray-800 mb-4">Fuzzy Duplicate Finder</h3>
@@ -133,6 +187,7 @@ export default function FuzzyDuplicateFinder({ token }) {
                   <div className="font-medium">Set {idx + 1} — highest score: {Math.max(...group.map((g) => g._score)).toFixed(3)}</div>
                   <div className="space-x-2">
                     <button onClick={() => handleSuggestMerge(group)} disabled={merging} className="bg-yellow-500 text-white px-3 py-1 rounded-md">Suggest Merge</button>
+                    <button onClick={() => openMergeModal(group, idx)} disabled={merging} className="bg-blue-600 text-white px-3 py-1 rounded-md ml-2">Select & Merge</button>
                   </div>
                 </div>
                 <ul className="divide-y divide-gray-200">
@@ -149,6 +204,9 @@ export default function FuzzyDuplicateFinder({ token }) {
               </div>
             ))}
           </div>
+        )}
+        {modalVisible && (
+          <MergeModal records={modalRecords} initialIndex={selectedGroupIndex} onClose={() => setModalVisible(false)} onConfirm={executeMerge} />
         )}
       </div>
     </div>

@@ -2,6 +2,8 @@ import React, { useState, useCallback } from 'react';
 import { hubSpotApiRequest } from '../lib/api';
 import { Spinner, CheckCircleIcon, ExclamationCircleIcon } from './icons';
 import ProgressBar from './ProgressBar';
+import MergeModal from './MergeModal';
+import { recordAction, recordFailure } from '../lib/history';
 
 const CompanyDuplicateFinder = ({ token }) => {
   const [duplicates, setDuplicates] = useState([]);
@@ -67,6 +69,9 @@ const CompanyDuplicateFinder = ({ token }) => {
   }, [token]);
 
   const [progress, setProgress] = useState(0);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalRecords, setModalRecords] = useState([]);
+  const [selectedGroupIndex, setSelectedGroupIndex] = useState(null);
 
   const handleMerge = async (group) => {
     if (group.length < 2) return;
@@ -82,9 +87,17 @@ const CompanyDuplicateFinder = ({ token }) => {
         const body = { objectIdToMerge: rec.id };
         await hubSpotApiRequest(path, 'POST', token, body);
         setMergeStatus((prev) => ({ ...prev, [rec.id]: 'merged' }));
+        // record action snapshot for undo (best-effort)
+        try {
+          const snap = await hubSpotApiRequest(`/crm/v3/objects/companies/${rec.id}`, 'GET', token);
+          recordAction('merged', primary.id, { primaryId: primary.id, mergeId: rec.id, source: 'company' }, { action: 'recreate', payload: { create: [{ properties: snap.properties || {} }] } });
+        } catch (e) {
+          recordFailure('company_snapshot_failed', { id: rec.id, error: e.message });
+        }
       } catch (err) {
         setError(`Failed to merge ${rec.id}: ${err.message}`);
         setMergeStatus((prev) => ({ ...prev, [rec.id]: 'failed' }));
+        recordFailure('company_merge_failed', { primaryId: primary.id, mergeId: rec.id, error: err.message });
       }
       // brief delay to avoid spamming merge endpoint
       await sleep(350);
@@ -135,9 +148,43 @@ const CompanyDuplicateFinder = ({ token }) => {
                 <button onClick={() => handleMerge(group)} disabled={isMerging} className="mt-4 bg-orange-500 text-white px-3 py-1 text-sm rounded-md hover:bg-orange-600 disabled:bg-orange-300">
                   Merge All into Newest Record
                 </button>
+                <button onClick={() => { setModalRecords(group); setSelectedGroupIndex(index); setModalVisible(true); }} disabled={isMerging} className="mt-4 ml-3 bg-blue-600 text-white px-3 py-1 text-sm rounded-md hover:bg-blue-700 disabled:bg-blue-300">Select & Merge</button>
               </div>
             ))}
           </div>
+        )}
+        {modalVisible && (
+          <MergeModal records={modalRecords} initialIndex={selectedGroupIndex} onClose={() => setModalVisible(false)} onConfirm={async (primaryId, mergeIds) => {
+            // reuse pattern from DuplicateFinder: fetch snapshots, perform sequential merges, log failures
+            setModalVisible(false);
+            setIsMerging(true);
+            try {
+              const snapshots = [];
+              for (const id of [primaryId, ...mergeIds]) {
+                try {
+                  const obj = await hubSpotApiRequest(`/crm/v3/objects/companies/${id}`, 'GET', token);
+                  snapshots.push({ id, properties: obj.properties || {} });
+                } catch (err) {
+                  recordFailure('fetch_snapshot_failed', { id, error: err.message, source: 'company' });
+                }
+              }
+              const undoPayload = { action: 'recreate', payload: { patch: [{ id: primaryId, properties: snapshots.find((s) => s.id === primaryId)?.properties || {} }], create: snapshots.filter((s) => s.id !== primaryId).map((s) => ({ properties: s.properties })) } };
+              const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+              for (const mid of mergeIds) {
+                try {
+                  await hubSpotApiRequest(`/crm/v3/objects/companies/${primaryId}/merge`, 'POST', token, { objectIdToMerge: mid });
+                  await sleep(400);
+                } catch (err) {
+                  recordFailure('merge_failed', { primaryId, mergeId: mid, error: err.message, source: 'company' });
+                }
+              }
+              recordAction('merged', primaryId, { primaryId, mergeIds, source: 'company' }, undoPayload);
+            } catch (err) {
+              setError(err.message);
+            } finally {
+              setIsMerging(false);
+            }
+          }} />
         )}
       </div>
     </div>

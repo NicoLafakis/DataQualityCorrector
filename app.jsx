@@ -15,6 +15,7 @@ import AutomationRules from './components/AutomationRules';
 import UniversalAnalyzer from './components/UniversalAnalyzer';
 import ScanHistory from './components/ScanHistory';
 import ReviewQueue from './components/ReviewQueue';
+import FailureLog from './components/FailureLog';
 
 // --- MAIN APP COMPONENT ---
 export default function App() {
@@ -115,6 +116,7 @@ export default function App() {
         duplicates: { label: 'Contact Duplicates', icon: <DocumentDuplicateIcon />, component: <DuplicateFinder token={hubSpotToken} /> },
         fuzzyDuplicates: { label: 'Fuzzy Duplicates', icon: <DocumentDuplicateIcon />, component: <FuzzyDuplicateFinder token={hubSpotToken} /> },
         review: { label: 'Review Queue', icon: <DocumentDuplicateIcon />, component: <ReviewQueue token={hubSpotToken} /> },
+    failures: { label: 'Failures', icon: <ExclamationCircleIcon />, component: <FailureLog /> },
         companyDuplicates: { label: 'Company Duplicates', icon: <DocumentDuplicateIcon />, component: <CompanyDuplicateFinder token={hubSpotToken} /> },
         geoCorrect: { label: 'Geo Correction', icon: <GlobeIcon />, component: <GeoCorrector token={hubSpotToken} openAiKey={openAiKey} /> },
         automation: { label: 'Automation Rules', icon: <ShieldCheckIcon />, component: <AutomationRules token={hubSpotToken} /> },
