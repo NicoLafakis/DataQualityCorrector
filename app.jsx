@@ -171,12 +171,20 @@ export default function App() {
                     <aside className="md:w-1/4 lg:w-1/5">
                         <nav className="space-y-4">
                             {SIDEBAR_SECTIONS.map(section => (
-                                <div key={section.id} className="bg-white border border-gray-100 rounded-md shadow-sm">
-                                    <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between">
+                                // Add a taller container for the Analysis section and use flex layout for its items
+                                <div key={section.id} className={`bg-white border border-gray-100 rounded-md shadow-sm ${section.id === 'analysis' && expandedSections[section.id] ? 'min-h-[260px]' : ''}`}>
+                                    {/* Make the whole header clickable to toggle the section */}
+                                    <div
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={() => toggleSection(section.id)}
+                                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSection(section.id); } }}
+                                        className="px-4 py-2 border-b border-gray-100 flex items-center justify-between cursor-pointer"
+                                    >
                                         <h4 className="text-sm font-semibold text-gray-700">{section.label}</h4>
                                         <button
                                             type="button"
-                                            onClick={() => toggleSection(section.id)}
+                                            onClick={(e) => { e.stopPropagation(); toggleSection(section.id); }}
                                             className="p-1 text-gray-500 hover:text-gray-700"
                                             aria-expanded={!!expandedSections[section.id]}
                                             aria-controls={`section-${section.id}`}
@@ -188,16 +196,33 @@ export default function App() {
                                         </button>
                                     </div>
                                     {expandedSections[section.id] ? (
-                                        <div id={`section-${section.id}`} className="p-2 space-y-1">
-                                            {section.items.map(key => {
+                                        <div id={`section-${section.id}`} className={`${section.id === 'analysis' ? 'p-4 flex flex-col justify-between' : 'p-2 space-y-1'}`}>
+                                            {section.items.map((key, idx) => {
                                                 const tab = TABS[key];
                                                 if (!tab) return null;
+
+                                                // For analysis section, render items in a flex column with even spacing
+                                                if (section.id === 'analysis') {
+                                                    return (
+                                                        <button
+                                                            key={key}
+                                                            onClick={() => setActiveTab(key)}
+                                                            disabled={!tokenValid}
+                                                            className={`w-full flex items-center space-x-3 px-4 py-3 my-2 rounded-lg text-left transition-colors duration-200 ${activeTab === key ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-600 hover:bg-gray-200'} disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed`}
+                                                            style={{ marginTop: idx === 0 ? '0' : undefined }}
+                                                        >
+                                                            {tab.icon}
+                                                            <span className="font-medium">{tab.label}</span>
+                                                        </button>
+                                                    );
+                                                }
+
                                                 return (
                                                     <button
                                                         key={key}
                                                         onClick={() => setActiveTab(key)}
                                                         disabled={!tokenValid}
-                                                        className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors duration-200 ${activeTab === key ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-600 hover:bg-gray-200'} disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed`}
+                                                        className={`w-full flex items-center space-x-3 px-4 py-3 my-2 rounded-lg text-left transition-colors duration-200 ${activeTab === key ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-600 hover:bg-gray-200'} disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed`}
                                                     >
                                                         {tab.icon}
                                                         <span className="font-medium">{tab.label}</span>
