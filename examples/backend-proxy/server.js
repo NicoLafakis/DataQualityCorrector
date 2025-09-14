@@ -45,6 +45,38 @@ app.post('/api/hubspot', async (req, res) => {
       body: body ? JSON.stringify(body) : undefined,
     });
 
+    // Forward relevant rate limit headers and Retry-After
+    const forwardHeaders = [
+      'retry-after',
+      'x-hubspot-ratelimit-interval-milliseconds',
+      'x-hubspot-ratelimit-max',
+      'x-hubspot-ratelimit-remaining',
+      'x-hubspot-ratelimit-secondly-remaining',
+      'x-hubspot-ratelimit-secondly-limit',
+      'x-hubspot-ratelimit-daily-remaining',
+      'x-hubspot-ratelimit-daily-limit',
+      'x-hubspot-ratelimit-10secondly-remaining',
+      'x-hubspot-ratelimit-10secondly-limit',
+    ];
+    try {
+      const expose = [];
+      forwardHeaders.forEach((h) => {
+        const v = resp.headers.get(h);
+        if (v !== null && v !== undefined) {
+          res.setHeader(h, v);
+          expose.push(h);
+        }
+      });
+      if (expose.length) {
+        const existing = res.getHeader('Access-Control-Expose-Headers');
+        const combined = new Set(String(existing || '').split(',').map((s) => s.trim()).filter(Boolean));
+        expose.forEach((h) => combined.add(h));
+        res.setHeader('Access-Control-Expose-Headers', Array.from(combined).join(', '));
+      }
+    } catch (e) {
+      // non-fatal; continue
+    }
+
     const text = await resp.text();
     let data = null;
     try { data = text ? JSON.parse(text) : null; } catch (_e) { /* return raw text if not JSON */ }

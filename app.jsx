@@ -5,12 +5,18 @@ import AnomalyDetector from './components/AnomalyDetector';
 import PropertyFillRate from './components/PropertyFillRate';
 import GeoCorrector from './components/GeoCorrector';
 import DuplicateFinder from './components/DuplicateFinder';
+import Overview from './components/Overview';
+import CompanyDuplicateFinder from './components/CompanyDuplicateFinder';
+import FormattingIssues from './components/FormattingIssues';
+import PropertyInsights from './components/PropertyInsights';
+import EnrichmentScanner from './components/EnrichmentScanner';
+import AutomationRules from './components/AutomationRules';
 
 // --- MAIN APP COMPONENT ---
 export default function App() {
     const [hubSpotToken, setHubSpotToken] = useState('');
     const [openAiKey, setOpenAiKey] = useState('');
-    const [activeTab, setActiveTab] = useState('anomalies');
+    const [activeTab, setActiveTab] = useState('overview');
     const [tokenValid, setTokenValid] = useState(null);
     const [isCheckingToken, setIsCheckingToken] = useState(false);
 
@@ -93,10 +99,16 @@ export default function App() {
     }, [openAiKey]);
 
     const TABS = {
+        overview: { label: 'Overview', icon: <ChartPieIcon />, component: <Overview token={hubSpotToken} onNavigate={setActiveTab} /> },
         anomalies: { label: 'Anomalies', icon: <ShieldCheckIcon />, component: <AnomalyDetector token={hubSpotToken} /> },
+        formatting: { label: 'Formatting', icon: <ShieldCheckIcon />, component: <FormattingIssues token={hubSpotToken} /> },
         fillRate: { label: 'Fill Rate', icon: <ChartPieIcon />, component: <PropertyFillRate token={hubSpotToken} /> },
+        propertyInsights: { label: 'Property Insights', icon: <ChartPieIcon />, component: <PropertyInsights token={hubSpotToken} /> },
+        enrichment: { label: 'Enrichment', icon: <GlobeIcon />, component: <EnrichmentScanner token={hubSpotToken} openAiKey={openAiKey} /> },
+        duplicates: { label: 'Contact Duplicates', icon: <DocumentDuplicateIcon />, component: <DuplicateFinder token={hubSpotToken} /> },
+        companyDuplicates: { label: 'Company Duplicates', icon: <DocumentDuplicateIcon />, component: <CompanyDuplicateFinder token={hubSpotToken} /> },
         geoCorrect: { label: 'Geo Correction', icon: <GlobeIcon />, component: <GeoCorrector token={hubSpotToken} openAiKey={openAiKey} /> },
-        duplicates: { label: 'Duplicates', icon: <DocumentDuplicateIcon />, component: <DuplicateFinder token={hubSpotToken} /> },
+        automation: { label: 'Automation Rules', icon: <ShieldCheckIcon />, component: <AutomationRules token={hubSpotToken} /> },
     };
 
     return (
