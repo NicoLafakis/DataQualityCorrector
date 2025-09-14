@@ -25,11 +25,13 @@ const CompanyDuplicateFinder = ({ token }) => {
     try {
       let all = [];
       let after = undefined;
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       do {
         const path = `/crm/v3/objects/companies?limit=100&properties=name,domain,website,createdate${after ? `&after=${after}` : ''}`;
         const data = await hubSpotApiRequest(path, 'GET', token);
         all = all.concat(data.results || []);
         after = data.paging?.next?.after;
+        if (after) await sleep(200);
       } while (after);
 
       // Group by domain
@@ -66,6 +68,7 @@ const CompanyDuplicateFinder = ({ token }) => {
     const sorted = group.slice().sort((a, b) => new Date(b.properties.createdate) - new Date(a.properties.createdate));
     const primary = sorted[0];
     const rest = sorted.slice(1);
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     for (const rec of rest) {
       setMergeStatus((prev) => ({ ...prev, [rec.id]: 'merging' }));
       try {
@@ -77,6 +80,8 @@ const CompanyDuplicateFinder = ({ token }) => {
         setError(`Failed to merge ${rec.id}: ${err.message}`);
         setMergeStatus((prev) => ({ ...prev, [rec.id]: 'failed' }));
       }
+      // brief delay to avoid spamming merge endpoint
+      await sleep(350);
     }
     await findDuplicates();
     setIsMerging(false);

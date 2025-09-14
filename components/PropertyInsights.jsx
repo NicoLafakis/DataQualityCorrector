@@ -20,15 +20,22 @@ export default function PropertyInsights({ token }) {
 
       const out = [];
       // Limit to first 80 properties per scan to avoid excessive calls
-      for (const prop of properties.slice(0, 80)) {
-        const filledBody = { limit: 1, filterGroups: [{ filters: [{ propertyName: prop.name, operator: 'HAS_PROPERTY' }] }] };
-        const filled = await hubSpotApiRequest(`/crm/v3/objects/${objectType}/search`, 'POST', token, filledBody);
-        const filledCount = filled.total || 0;
-        // "Unused" heuristic: 0 filled and text-like field
-        const isText = ['string', 'textarea', 'enumeration'].includes(prop.type) || ['text', 'textarea', 'select', 'radio'].includes(prop.fieldType);
-        const noData = filledCount === 0;
-        const unused = noData && isText;
-        out.push({ name: prop.label || prop.name, internalName: prop.name, group: prop.groupName, fillRate: ((filledCount / total) * 100).toFixed(2), noData, unused });
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      const list = properties.slice(0, 80);
+      const concurrency = 5;
+      for (let i = 0; i < list.length; i += concurrency) {
+        const batch = list.slice(i, i + concurrency);
+        const results = await Promise.all(batch.map(async (prop) => {
+          const filledBody = { limit: 1, filterGroups: [{ filters: [{ propertyName: prop.name, operator: 'HAS_PROPERTY' }] }] };
+          const filled = await hubSpotApiRequest(`/crm/v3/objects/${objectType}/search`, 'POST', token, filledBody);
+          const filledCount = filled.total || 0;
+          const isText = ['string', 'textarea', 'enumeration'].includes(prop.type) || ['text', 'textarea', 'select', 'radio'].includes(prop.fieldType);
+          const noData = filledCount === 0;
+          const unused = noData && isText;
+          return { name: prop.label || prop.name, internalName: prop.name, group: prop.groupName, fillRate: ((filledCount / total) * 100).toFixed(2), noData, unused };
+        }));
+        out.push(...results);
+        await sleep(300);
       }
 
       setRows(out);

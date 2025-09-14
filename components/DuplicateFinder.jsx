@@ -19,11 +19,13 @@ const DuplicateFinder = ({ token }) => {
     try {
       let allContacts = [];
       let after = undefined;
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       do {
         const path = `/crm/v3/objects/contacts?limit=100&properties=email,firstname,lastname,createdate${after ? `&after=${after}` : ''}`;
         const data = await hubSpotApiRequest(path, 'GET', token);
         allContacts = [...allContacts, ...data.results];
         after = data.paging?.next?.after;
+        if (after) await sleep(200);
       } while (after);
 
       const emails = allContacts.reduce((acc, contact) => {
@@ -51,6 +53,7 @@ const DuplicateFinder = ({ token }) => {
     const sortedGroup = group.sort((a, b) => new Date(b.properties.createdate) - new Date(a.properties.createdate));
     const primaryRecord = sortedGroup[0];
     const recordsToMerge = sortedGroup.slice(1);
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
     for (const recordToMerge of recordsToMerge) {
       setMergeStatus((prev) => ({ ...prev, [recordToMerge.id]: 'merging' }));
@@ -63,6 +66,8 @@ const DuplicateFinder = ({ token }) => {
         setError(`Failed to merge ${recordToMerge.id}: ${err.message}`);
         setMergeStatus((prev) => ({ ...prev, [recordToMerge.id]: 'failed' }));
       }
+      // brief delay to avoid spamming merge endpoint
+      await sleep(350);
     }
 
     await findDuplicatesByEmail();

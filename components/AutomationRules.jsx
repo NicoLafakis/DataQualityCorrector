@@ -44,7 +44,12 @@ export default function AutomationRules({ token }) {
       const records = res.results || [];
       const { updates } = applyRules(objectType, records, rules);
       if (updates.length) {
-        await hubSpotApiRequest(`/crm/v3/objects/${objectType}/batch/update`, 'POST', token, { inputs: updates });
+        const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+        const chunks = Array.from({ length: Math.ceil(updates.length / 100) }, (_, i) => updates.slice(i * 100, i * 100 + 100));
+        for (const batch of chunks) {
+          await hubSpotApiRequest(`/crm/v3/objects/${objectType}/batch/update`, 'POST', token, { inputs: batch });
+          await sleep(300);
+        }
       }
     } catch (err) {
       setError(err.message);

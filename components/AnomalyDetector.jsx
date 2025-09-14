@@ -27,12 +27,15 @@ const AnomalyDetector = ({ token }) => {
       const propertiesToFetch = ['firstname', 'lastname', 'email', 'website', 'hs_object_id'];
       let allRecords = [];
       let after = undefined;
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
       do {
         const path = `/crm/v3/objects/${objectType}?limit=100&properties=${propertiesToFetch.join(',')}${after ? `&after=${after}` : ''}`;
         const data = await hubSpotApiRequest(path, 'GET', token);
         allRecords = [...allRecords, ...data.results];
         after = data.paging?.next?.after;
+        // brief pause between pages
+        if (after) await sleep(200);
       } while (after);
 
       const foundAnomalies = [];

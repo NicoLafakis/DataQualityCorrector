@@ -22,17 +22,24 @@ const PropertyFillRate = ({ token }) => {
 
       const { results: properties } = await hubSpotApiRequest(`/crm/v3/properties/${objectType}`, 'GET', token);
 
-      const ratePromises = properties.map(async (prop) => {
-        const body = {
-          limit: 1,
-          filterGroups: [{ filters: [{ propertyName: prop.name, operator: 'HAS_PROPERTY' }] }],
-        };
-        const { total: filledCount } = await hubSpotApiRequest(`/crm/v3/objects/${objectType}/search`, 'POST', token, body);
-        const rate = total > 0 ? (filledCount / total) * 100 : 0;
-        return { name: prop.label, rate: rate.toFixed(2), group: prop.groupName };
-      });
-
-      const calculatedRates = await Promise.all(ratePromises);
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      const concurrency = 5; // small parallelism to avoid long waits, without overloading API
+      const chunks = Array.from({ length: Math.ceil(properties.length / concurrency) }, (_, i) => properties.slice(i * concurrency, i * concurrency + concurrency));
+      const calculatedRates = [];
+      for (const group of chunks) {
+        const results = await Promise.all(group.map(async (prop) => {
+          const body = {
+            limit: 1,
+            filterGroups: [{ filters: [{ propertyName: prop.name, operator: 'HAS_PROPERTY' }] }],
+          };
+          const { total: filledCount } = await hubSpotApiRequest(`/crm/v3/objects/${objectType}/search`, 'POST', token, body);
+          const rate = total > 0 ? (filledCount / total) * 100 : 0;
+          return { name: prop.label, rate: rate.toFixed(2), group: prop.groupName };
+        }));
+        calculatedRates.push(...results);
+        // brief pause between waves to be nice to HubSpot APIs
+        await sleep(300);
+      }
       setRates(calculatedRates);
     } catch (err) {
       setError(err.message);

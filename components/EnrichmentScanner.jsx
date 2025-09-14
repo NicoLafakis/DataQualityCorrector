@@ -24,21 +24,37 @@ export default function EnrichmentScanner({ token, openAiKey }) {
       const { total } = await hubSpotApiRequest(`/crm/v3/objects/${objectType}/search`, 'POST', token, { limit: 1, filterGroups: [] });
       if (!total) { setCoverage([]); setIsLoading(false); return; }
 
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      const concurrency = 5;
+      const groups = Array.from({ length: Math.ceil(props.length / concurrency) }, (_, i) => props.slice(i * concurrency, i * concurrency + concurrency));
       const cov = [];
-      for (const p of props) {
-        const body = { limit: 1, filterGroups: [{ filters: [{ propertyName: p, operator: 'HAS_PROPERTY' }] }] };
-        const resp = await hubSpotApiRequest(`/crm/v3/objects/${objectType}/search`, 'POST', token, body);
-        cov.push({ property: p, rate: ((resp.total || 0) / total * 100).toFixed(2) });
+      for (const g of groups) {
+        const out = await Promise.all(g.map(async (p) => {
+          const body = { limit: 1, filterGroups: [{ filters: [{ propertyName: p, operator: 'HAS_PROPERTY' }] }] };
+          const resp = await hubSpotApiRequest(`/crm/v3/objects/${objectType}/search`, 'POST', token, body);
+          return { property: p, rate: ((resp.total || 0) / total * 100).toFixed(2) };
+        }));
+        cov.push(...out);
+        await sleep(300);
       }
       setCoverage(cov);
 
       // Load a small sample of records missing any of the core fields
-      const sample = await hubSpotApiRequest(`/crm/v3/objects/${objectType}?limit=200&properties=${props.join(',')},hs_object_id`, 'GET', token);
-      const missing = (sample.results || []).filter((r) => {
-        const pr = r.properties || {};
-        return props.some((p) => !pr[p]);
-      }).slice(0, 50);
-      setSampleMissing(missing);
+      let after = undefined;
+      const sample = [];
+      do {
+        const page = await hubSpotApiRequest(`/crm/v3/objects/${objectType}?limit=100&properties=${props.join(',')},hs_object_id${after ? `&after=${after}` : ''}`, 'GET', token);
+        const pageResults = (page.results || []);
+        const missing = pageResults.filter((r) => {
+          const pr = r.properties || {};
+          return props.some((p) => !pr[p]);
+        });
+        sample.push(...missing);
+        after = page.paging?.next?.after;
+        if (sample.length >= 50) break; // cap
+        await sleep(200);
+      } while (after);
+      setSampleMissing(sample.slice(0, 50));
     } catch (err) {
       setError(err.message);
     } finally {

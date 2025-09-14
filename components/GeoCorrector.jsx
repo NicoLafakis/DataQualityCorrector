@@ -79,8 +79,13 @@ const GeoCorrector = ({ token, openAiKey }) => {
         id: c.id,
         properties: c.corrected,
       }));
-      const body = { inputs: updates };
-      await hubSpotApiRequest('/crm/v3/objects/contacts/batch/update', 'POST', token, body);
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      const chunk = (arr, size) => Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, i * size + size));
+      const batches = chunk(updates, 100);
+      for (const b of batches) {
+        await hubSpotApiRequest('/crm/v3/objects/contacts/batch/update', 'POST', token, { inputs: b });
+        await sleep(300);
+      }
       setStatus('Successfully updated records.');
       setCorrections([]);
     } catch (err) {

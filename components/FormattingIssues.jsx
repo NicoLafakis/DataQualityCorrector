@@ -30,6 +30,10 @@ export default function FormattingIssues({ token }) {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
 
+  // Gentle helpers for batching
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const chunk = (arr, size) => Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, i * size + size));
+
   const scan = useCallback(async () => {
     setIsLoading(true);
     setError('');
@@ -86,8 +90,13 @@ export default function FormattingIssues({ token }) {
         inputs.push({ id: it.id, properties: { [it.property]: it.suggestedValue } });
       });
       if (inputs.length) {
-        // Batch update
-        await hubSpotApiRequest(`/crm/v3/objects/${objectType}/batch/update`, 'POST', token, { inputs });
+        // HubSpot batch size limit is typically 100 per request; chunk accordingly and add a short pause between batches
+        const batches = chunk(inputs, 100);
+        for (const b of batches) {
+          await hubSpotApiRequest(`/crm/v3/objects/${objectType}/batch/update`, 'POST', token, { inputs: b });
+          // small pacing to avoid hitting second-level limits when many batches
+          await sleep(300);
+        }
         // Remove applied issues from list
         const remaining = issues.filter((_, idx) => !selected[idx]);
         setIssues(remaining);

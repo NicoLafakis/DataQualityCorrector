@@ -11,9 +11,10 @@ export default function Overview({ token, onNavigate }) {
     setIsLoading(true);
     setError('');
     try {
-      // Duplicates (contacts by email only quick estimate: first 200)
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      // Duplicates (contacts by email only quick estimate: first 100 per API page limit)
       const dupCount = await (async () => {
-        const data = await hubSpotApiRequest(`/crm/v3/objects/contacts?limit=200&properties=email,createdate`, 'GET', token);
+        const data = await hubSpotApiRequest(`/crm/v3/objects/contacts?limit=100&properties=email,createdate`, 'GET', token);
         const map = {};
         (data.results || []).forEach((c) => {
           const e = (c.properties?.email || '').toLowerCase();
@@ -34,14 +35,15 @@ export default function Overview({ token, onNavigate }) {
           }
           return acc;
         }, 0);
-        const c1 = await hubSpotApiRequest(`/crm/v3/objects/contacts?limit=200&properties=email,website`, 'GET', token);
-        const c2 = await hubSpotApiRequest(`/crm/v3/objects/companies?limit=200&properties=website,domain`, 'GET', token);
+        const c1 = await hubSpotApiRequest(`/crm/v3/objects/contacts?limit=100&properties=email,website`, 'GET', token);
+        await sleep(150);
+        const c2 = await hubSpotApiRequest(`/crm/v3/objects/companies?limit=100&properties=website,domain`, 'GET', token);
         return check(c1.results || []) + check(c2.results || []);
       })();
 
-      // Enrichment gaps: contacts missing city/state/country in first 200
+      // Enrichment gaps: contacts missing city/state/country in first page (100)
       const enrichmentGaps = await (async () => {
-        const c = await hubSpotApiRequest(`/crm/v3/objects/contacts?limit=200&properties=city,state,country`, 'GET', token);
+        const c = await hubSpotApiRequest(`/crm/v3/objects/contacts?limit=100&properties=city,state,country`, 'GET', token);
         return (c.results || []).filter((r) => {
           const p = r.properties || {};
           return !p.city || !p.state || !p.country;
