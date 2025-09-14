@@ -61,7 +61,9 @@ const DuplicateFinder = ({ token }) => {
 
   // Open merge modal for a specific duplicate group
   const openMergeModal = (group, index) => {
-    setModalRecords(group);
+    // ensure each has properties for the modal view
+    const mapped = group.map((r) => ({ id: r.id, properties: r.properties || {} }));
+    setModalRecords(mapped);
     setSelectedGroupIndex(index);
     setModalVisible(true);
   };
@@ -180,6 +182,7 @@ const DuplicateFinder = ({ token }) => {
             ))}
           </div>
         )}
+        <MergeModal visible={modalVisible} records={modalRecords} onCancel={() => setModalVisible(false)} onConfirm={executeMerge} />
       </div>
     </div>
   );

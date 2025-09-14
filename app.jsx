@@ -132,7 +132,7 @@ export default function App() {
         {
             id: 'duplicates',
             label: 'Duplicates',
-            items: ['duplicates', 'fuzzyDuplicates', 'companyDuplicates', 'review']
+            items: ['duplicates', 'fuzzyDuplicates', 'companyDuplicates', 'review', 'failures']
         },
         {
             id: 'tools',

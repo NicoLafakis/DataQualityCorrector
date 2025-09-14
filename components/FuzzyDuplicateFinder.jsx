@@ -117,7 +117,18 @@ export default function FuzzyDuplicateFinder({ token }) {
   };
 
   const openMergeModal = (group, index) => {
-    setModalRecords(group);
+    // map to shape expected by MergeModal: { id, properties: {...} }
+    const mapped = group.map((r) => ({
+      id: r.id,
+      properties: {
+        firstname: r.firstname || '',
+        lastname: r.lastname || '',
+        email: r.email || '',
+        company: r.company || '',
+        createdate: r.createdate || ''
+      }
+    }));
+    setModalRecords(mapped);
     setSelectedGroupIndex(index);
     setModalVisible(true);
   };
@@ -205,9 +216,7 @@ export default function FuzzyDuplicateFinder({ token }) {
             ))}
           </div>
         )}
-        {modalVisible && (
-          <MergeModal records={modalRecords} initialIndex={selectedGroupIndex} onClose={() => setModalVisible(false)} onConfirm={executeMerge} />
-        )}
+        <MergeModal visible={modalVisible} records={modalRecords} onCancel={() => setModalVisible(false)} onConfirm={executeMerge} />
       </div>
     </div>
   );

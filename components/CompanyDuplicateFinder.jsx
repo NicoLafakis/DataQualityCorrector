@@ -148,13 +148,12 @@ const CompanyDuplicateFinder = ({ token }) => {
                 <button onClick={() => handleMerge(group)} disabled={isMerging} className="mt-4 bg-orange-500 text-white px-3 py-1 text-sm rounded-md hover:bg-orange-600 disabled:bg-orange-300">
                   Merge All into Newest Record
                 </button>
-                <button onClick={() => { setModalRecords(group); setSelectedGroupIndex(index); setModalVisible(true); }} disabled={isMerging} className="mt-4 ml-3 bg-blue-600 text-white px-3 py-1 text-sm rounded-md hover:bg-blue-700 disabled:bg-blue-300">Select & Merge</button>
+                <button onClick={() => { const mapped = group.map((r) => ({ id: r.id, properties: r.properties || {} })); setModalRecords(mapped); setSelectedGroupIndex(index); setModalVisible(true); }} disabled={isMerging} className="mt-4 ml-3 bg-blue-600 text-white px-3 py-1 text-sm rounded-md hover:bg-blue-700 disabled:bg-blue-300">Select & Merge</button>
               </div>
             ))}
           </div>
         )}
-        {modalVisible && (
-          <MergeModal records={modalRecords} initialIndex={selectedGroupIndex} onClose={() => setModalVisible(false)} onConfirm={async (primaryId, mergeIds) => {
+        <MergeModal visible={modalVisible} records={modalRecords} onCancel={() => setModalVisible(false)} onConfirm={async (primaryId, mergeIds) => {
             // reuse pattern from DuplicateFinder: fetch snapshots, perform sequential merges, log failures
             setModalVisible(false);
             setIsMerging(true);
@@ -185,7 +184,6 @@ const CompanyDuplicateFinder = ({ token }) => {
               setIsMerging(false);
             }
           }} />
-        )}
       </div>
     </div>
   );
