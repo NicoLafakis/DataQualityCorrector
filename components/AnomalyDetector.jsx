@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { hubSpotApiRequest } from '../lib/api';
 import { Spinner } from './icons';
+import ProgressBar from './ProgressBar';
 
 const AnomalyDetector = ({ token }) => {
   const [objectType, setObjectType] = useState('contacts');
@@ -50,6 +51,7 @@ const AnomalyDetector = ({ token }) => {
     setIsLoading(true);
     setError('');
     setAnomalies([]);
+    setProgress(0);
 
     try {
       // Heuristically choose relevant props by name if present for the selected object
@@ -67,6 +69,7 @@ const AnomalyDetector = ({ token }) => {
         after = data.paging?.next?.after;
         // brief pause between pages
         if (after) await sleep(200);
+        setProgress((prev) => Math.min(95, prev + 5));
       } while (after);
 
       const foundAnomalies = [];
@@ -84,12 +87,15 @@ const AnomalyDetector = ({ token }) => {
       });
 
       setAnomalies(foundAnomalies);
+      setProgress(100);
     } catch (err) {
       setError(err.message);
     } finally {
       setIsLoading(false);
     }
   }, [objectType, token]);
+
+  const [progress, setProgress] = useState(0);
 
   return (
     <div>
@@ -113,7 +119,7 @@ const AnomalyDetector = ({ token }) => {
           </button>
         </div>
         {error && <p className="text-red-500">{error}</p>}
-        {isLoading && <p>Scanning records...</p>}
+  {isLoading && <ProgressBar percent={progress} text="Scanning records for anomalies..." />}
         {!isLoading && anomalies.length > 0 && (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">

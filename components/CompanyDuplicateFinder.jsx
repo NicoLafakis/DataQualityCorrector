@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { hubSpotApiRequest } from '../lib/api';
 import { Spinner, CheckCircleIcon, ExclamationCircleIcon } from './icons';
+import ProgressBar from './ProgressBar';
 
 const CompanyDuplicateFinder = ({ token }) => {
   const [duplicates, setDuplicates] = useState([]);
@@ -22,6 +23,7 @@ const CompanyDuplicateFinder = ({ token }) => {
     setStatus('Finding company duplicates (domain & name)...');
     setDuplicates([]);
     setMergeStatus({});
+    setProgress(0);
     try {
       let all = [];
       let after = undefined;
@@ -32,6 +34,7 @@ const CompanyDuplicateFinder = ({ token }) => {
         all = all.concat(data.results || []);
         after = data.paging?.next?.after;
         if (after) await sleep(200);
+        setProgress((prev) => Math.min(95, prev + 5));
       } while (after);
 
       // Group by domain
@@ -55,12 +58,15 @@ const CompanyDuplicateFinder = ({ token }) => {
       ];
       setDuplicates(groups);
       setStatus(groups.length > 0 ? `Found ${groups.length} sets of duplicates.` : 'No duplicates found.');
+      setProgress(100);
     } catch (err) {
       setError(err.message);
     } finally {
       setIsLoading(false);
     }
   }, [token]);
+
+  const [progress, setProgress] = useState(0);
 
   const handleMerge = async (group) => {
     if (group.length < 2) return;
@@ -105,6 +111,7 @@ const CompanyDuplicateFinder = ({ token }) => {
             {isLoading ? <Spinner /> : 'Find Company Duplicates'}
           </button>
         </div>
+        {isLoading && <ProgressBar percent={progress} text="Scanning companies for duplicates..." />}
         {error && <p className="text-red-500">{error}</p>}
         {(isLoading || status) && <p className="text-gray-600">{status}</p>}
 

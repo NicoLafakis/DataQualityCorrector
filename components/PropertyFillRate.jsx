@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { hubSpotApiRequest } from '../lib/api';
 import { Spinner } from './icons';
+import ProgressBar from './ProgressBar';
 
 const PropertyFillRate = ({ token }) => {
   const [rates, setRates] = useState([]);
@@ -26,6 +27,7 @@ const PropertyFillRate = ({ token }) => {
     setIsLoading(true);
     setError('');
     setRates([]);
+    setProgress(0);
     try {
       const { total } = await hubSpotApiRequest(`/crm/v3/objects/${objectType}/search`, 'POST', token, { limit: 1, filterGroups: [] });
       if (total === 0) {
@@ -53,14 +55,18 @@ const PropertyFillRate = ({ token }) => {
         calculatedRates.push(...results);
         // brief pause between waves to be nice to HubSpot APIs
         await sleep(300);
+        setProgress((prev) => Math.min(99, Math.round((calculatedRates.length / properties.length) * 100)));
       }
       setRates(calculatedRates);
+      setProgress(100);
     } catch (err) {
       setError(err.message);
     } finally {
       setIsLoading(false);
     }
   }, [objectType, token]);
+
+  const [progress, setProgress] = useState(0);
 
   const groupedRates = useMemo(() => {
     return rates.reduce((acc, rate) => {
@@ -93,7 +99,7 @@ const PropertyFillRate = ({ token }) => {
           </button>
         </div>
         {error && <p className="text-red-500">{error}</p>}
-        {isLoading && <p>Calculating rates... This may take a moment for portals with many properties.</p>}
+  {isLoading && <div><p>Calculating rates... This may take a moment for portals with many properties.</p><ProgressBar percent={progress} text="Calculating property fill rates..." /></div>}
         {!isLoading && rates.length > 0 && (
           <div className="space-y-4">
             {Object.entries(groupedRates)

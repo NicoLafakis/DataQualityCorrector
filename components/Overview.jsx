@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { Spinner } from './icons';
 import { hubSpotApiRequest } from '../lib/api';
+import ProgressBar from './ProgressBar';
 
 export default function Overview({ token, onNavigate }) {
   const [isLoading, setIsLoading] = useState(false);
@@ -10,6 +11,7 @@ export default function Overview({ token, onNavigate }) {
   const quickScan = useCallback(async () => {
     setIsLoading(true);
     setError('');
+    setProgress(0);
     try {
       const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       // Duplicates (contacts by email only quick estimate: first 100 per API page limit)
@@ -23,6 +25,7 @@ export default function Overview({ token, onNavigate }) {
         });
         return Object.values(map).filter((n) => n > 1).length;
       })();
+  setProgress(25);
 
       // Formatting: count obvious email/website issues in first 200 contacts & companies
       const fmtCount = await (async () => {
@@ -40,6 +43,7 @@ export default function Overview({ token, onNavigate }) {
         const c2 = await hubSpotApiRequest(`/crm/v3/objects/companies?limit=100&properties=website,domain`, 'GET', token);
         return check(c1.results || []) + check(c2.results || []);
       })();
+      setProgress(50);
 
       // Enrichment gaps: contacts missing city/state/country in first page (100)
       const enrichmentGaps = await (async () => {
@@ -49,6 +53,7 @@ export default function Overview({ token, onNavigate }) {
           return !p.city || !p.state || !p.country;
         }).length;
       })();
+      setProgress(75);
 
       // Properties to review: light heuristic — count of text-like properties (first 50) with label present
       const propertiesToReview = await (async () => {
@@ -59,6 +64,8 @@ export default function Overview({ token, onNavigate }) {
         } catch { return 0; }
       })();
 
+  setProgress(100);
+
       setSummary({ duplicates: dupCount, formatting: fmtCount, enrichmentGaps, propertiesToReview });
     } catch (err) {
       setError(err.message);
@@ -66,6 +73,8 @@ export default function Overview({ token, onNavigate }) {
       setIsLoading(false);
     }
   }, [token]);
+
+  const [progress, setProgress] = useState(0);
 
   return (
     <div>
@@ -76,6 +85,7 @@ export default function Overview({ token, onNavigate }) {
             {isLoading ? <Spinner /> : 'Run Quick Scan'}
           </button>
         </div>
+        {isLoading && <ProgressBar percent={progress} text="Running quick overview scan..." />}
         {error && <p className="text-red-500">{error}</p>}
         {!isLoading && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

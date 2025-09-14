@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { hubSpotApiRequest } from '../lib/api';
 import { Spinner } from './icons';
+import ProgressBar from './ProgressBar';
 
 export default function EnrichmentScanner({ token, openAiKey }) {
   const [objectType, setObjectType] = useState('contacts');
@@ -33,6 +34,7 @@ export default function EnrichmentScanner({ token, openAiKey }) {
     setError('');
     setCoverage([]);
     setSampleMissing([]);
+    setProgress(0);
     try {
       const props = CORE[objectType];
       const { total } = await hubSpotApiRequest(`/crm/v3/objects/${objectType}/search`, 'POST', token, { limit: 1, filterGroups: [] });
@@ -49,6 +51,12 @@ export default function EnrichmentScanner({ token, openAiKey }) {
           return { property: p, rate: ((resp.total || 0) / total * 100).toFixed(2) };
         }));
         cov.push(...out);
+        // update progress based on properties processed
+        setProgress((prev) => {
+          const processed = cov.length;
+          const totalProps = props.length;
+          return Math.min(95, Math.round((processed / totalProps) * 80));
+        });
         await sleep(300);
       }
       setCoverage(cov);
@@ -66,15 +74,21 @@ export default function EnrichmentScanner({ token, openAiKey }) {
         sample.push(...missing);
         after = page.paging?.next?.after;
         if (sample.length >= 50) break; // cap
+        // update progress as pages are fetched
+        setProgress((prev) => Math.min(99, prev + 5));
         await sleep(200);
       } while (after);
       setSampleMissing(sample.slice(0, 50));
+      setProgress(100);
     } catch (err) {
       setError(err.message);
     } finally {
       setIsLoading(false);
     }
   }, [objectType, token]);
+
+  // progress state for UI
+  const [progress, setProgress] = useState(0);
 
   return (
     <div>
@@ -95,6 +109,7 @@ export default function EnrichmentScanner({ token, openAiKey }) {
             {isLoading ? <Spinner /> : 'Scan for Enrichment Gaps'}
           </button>
         </div>
+        {isLoading && <ProgressBar percent={progress} text={`Scanning ${objectType}...`} />}
         {error && <p className="text-red-500">{error}</p>}
         {!isLoading && coverage.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">

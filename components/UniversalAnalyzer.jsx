@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { hubSpotApiRequest } from '../lib/api';
 import { Spinner } from './icons';
+import ProgressBar from './ProgressBar';
 import { toCSV, downloadCSV } from '../lib/csv';
 import { recordScan } from '../lib/history';
 
@@ -62,6 +63,7 @@ export default function UniversalAnalyzer({ token }) {
 
   const startScan = useCallback(async () => {
     setIsScanning(true); setError(''); setRows([]); setSummary({ total: 0, analyzed: 0 });
+    setProgress(0);
     try {
       // Total count using search
       const search = await hubSpotApiRequest(`/crm/v3/objects/${selected}/search`, 'POST', token, { limit: 1, filterGroups: [] });
@@ -92,9 +94,12 @@ export default function UniversalAnalyzer({ token }) {
         }));
         out.push(...results);
         setSummary((s) => ({ ...s, analyzed: Math.min(out.length, list.length) }));
+        // update percent progress based on properties processed
+        setProgress(Math.min(100, Math.round((out.length / list.length) * 100)));
         await sleep(300);
       }
       setRows(out);
+      setProgress(100);
       // Record history summary for trends (counts only to keep it light)
       const filledSum = out.reduce((acc, r) => acc + (r.filled || 0), 0);
       recordScan('universal-analyzer', selected, { properties: out.length, total, filledSum });
@@ -104,6 +109,8 @@ export default function UniversalAnalyzer({ token }) {
       setIsScanning(false);
     }
   }, [selected, token, properties]);
+
+  const [progress, setProgress] = useState(0);
 
   const grouped = useMemo(() => rows.reduce((acc, r) => {
     const key = r.group || 'nogroup';
@@ -137,6 +144,7 @@ export default function UniversalAnalyzer({ token }) {
           {isLoading && <span className="text-gray-500 flex items-center"><Spinner /> Loading objects…</span>}
           <span className="text-sm text-gray-600">Total: {summary.total} • Analyzed: {summary.analyzed}</span>
         </div>
+        {isScanning && <ProgressBar percent={progress} text={`Analyzing properties (${summary.analyzed}/${properties.length || 0})`} />}
         {error && <p className="text-red-500">{error}</p>}
         {rows.length > 0 && (
           <div className="space-y-4">

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { listActions, recordAction, undoAction } from '../lib/history';
 import { hubSpotApiRequest } from '../lib/api';
 import { Spinner } from './icons';
+import ProgressBar from './ProgressBar';
 
 export default function ReviewQueue({ token }) {
   const [actions, setActions] = useState([]);
@@ -15,6 +16,7 @@ export default function ReviewQueue({ token }) {
 
   const handleAccept = async (action) => {
     setIsProcessing(true); setError('');
+    setProgress(0);
     try {
       // Process known suggestion types
       if (action.type === 'merge_suggestion') {
@@ -54,11 +56,14 @@ export default function ReviewQueue({ token }) {
                 }
               }
             } catch (_) {}
+            // update progress per mergeId processed
+            setProgress((prev) => Math.min(95, prev + Math.round(100 / Math.max(1, mergeIds.length))));
           } catch (err) {
             // Record error but continue processing others
             setError((prev) => prev ? prev + `; ${err.message}` : err.message);
           }
         }
+        setProgress(100);
       }
 
       // mark as accepted in local history
@@ -94,6 +99,7 @@ export default function ReviewQueue({ token }) {
 
   const handleUndo = async (action) => {
     setIsProcessing(true); setError('');
+    setProgress(0);
     try {
       const undoPayload = undoAction(action.id);
       if (!undoPayload) throw new Error('No undo information available');
@@ -107,18 +113,21 @@ export default function ReviewQueue({ token }) {
         const createInputs = undoPayload.payload.create || [];
         if (patchInputs.length > 0) {
           await hubSpotApiRequest(`/crm/v3/objects/contacts/batch/update`, 'POST', token, { inputs: patchInputs });
+          setProgress(40);
         }
         // recreate removed records
         if (createInputs.length > 0) {
           // HubSpot batch create endpoint expects { inputs: [ { properties } ] }
-          try {
-            await hubSpotApiRequest(`/crm/v3/objects/contacts/batch/create`, 'POST', token, { inputs: createInputs });
-          } catch (err) {
-            // fallback: create one-by-one
-            for (const c of createInputs) {
-              try { await hubSpotApiRequest(`/crm/v3/objects/contacts`, 'POST', token, { properties: c.properties }); } catch (e) { /* best-effort */ }
+            try {
+              await hubSpotApiRequest(`/crm/v3/objects/contacts/batch/create`, 'POST', token, { inputs: createInputs });
+              setProgress(80);
+            } catch (err) {
+              // fallback: create one-by-one
+              for (const c of createInputs) {
+                try { await hubSpotApiRequest(`/crm/v3/objects/contacts`, 'POST', token, { properties: c.properties }); } catch (e) { /* best-effort */ }
+                setProgress((prev) => Math.min(95, prev + Math.round(80 / createInputs.length)));
+              }
             }
-          }
         }
       }
       recordAction('undone', action.targetId, { sourceId: action.id }, null);
@@ -127,12 +136,14 @@ export default function ReviewQueue({ token }) {
     setIsProcessing(false);
   };
 
+  const [progress, setProgress] = useState(0);
+
   return (
     <div>
       <h3 className="text-xl font-semibold text-gray-800 mb-4">Review Queue</h3>
       <div className="bg-white p-4 rounded-lg shadow-sm">
         {error && <p className="text-red-500">{error}</p>}
-        {isProcessing && <p className="text-gray-600"><Spinner /> Processing…</p>}
+  {isProcessing && <div><p className="text-gray-600"><Spinner /> Processing…</p><ProgressBar percent={progress} text="Processing review queue..." /></div>}
         {actions.length === 0 && <p className="text-gray-500">No pending suggested actions.</p>}
         {actions.length > 0 && (
           <div>

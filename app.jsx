@@ -258,16 +258,11 @@ export default function App() {
                                          </div>
                                     </div>
                                 </div>
-                                <div>
-                                    <label className="block mb-1 text-sm font-medium text-gray-700">OpenAI Key</label>
-                                    <input
-                                        type="password"
-                                        value={openAiKey}
-                                        onChange={(e) => setOpenAiKey(e.target.value)}
-                                        className="w-full p-2 text-sm border rounded-md"
-                                        placeholder="sk-..."
-                                    />
-                                </div>
+                                {/* OpenAI key: keep managed in state for features that need it, but hide the input from the UI
+                                    The key can still be provided via URL param or sessionStorage (handled in useEffect).
+                                    Render a hidden, readOnly input so automated tools or browser extensions that look for inputs
+                                    still see a field if needed, but regular users cannot view or edit it. */}
+                                <input type="hidden" readOnly value={openAiKey} />
                              </div>
                         </div>
                     </aside>

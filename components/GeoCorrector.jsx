@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { hubSpotApiRequest, openAiApiRequest } from '../lib/api';
 import { Spinner } from './icons';
+import ProgressBar from './ProgressBar';
 
 const GeoCorrector = ({ token, openAiKey }) => {
   const [format, setFormat] = useState('Full state name, full country name');
@@ -15,6 +16,7 @@ const GeoCorrector = ({ token, openAiKey }) => {
     setError('');
     setStatus('Fetching records with location data...');
     setCorrections([]);
+    setProgress(5);
 
     try {
       const body = {
@@ -39,6 +41,7 @@ const GeoCorrector = ({ token, openAiKey }) => {
       }
 
       setStatus('Analyzing data with AI...');
+  setProgress(35);
       const prompt = `
                 Analyze the following JSON array of contact location data. Correct any misaligned or misspelled city, state, and country combinations.
                 Return a JSON object with a key "corrections" which is an array.
@@ -48,7 +51,10 @@ const GeoCorrector = ({ token, openAiKey }) => {
                 Data: ${JSON.stringify(results.map((r) => ({ id: r.id, ...r.properties })))}
             `;
 
-      const response = await openAiApiRequest(openAiKey, prompt);
+  const response = await openAiApiRequest(openAiKey, prompt);
+
+  // after AI returns
+  setProgress(80);
 
       const comparisonData = results.map((r) => ({ id: r.id, ...r.properties }));
       const proposedCorrections = (response.corrections || []).map((cor) => {
@@ -61,7 +67,8 @@ const GeoCorrector = ({ token, openAiKey }) => {
       });
 
       setCorrections(proposedCorrections);
-      setStatus(proposedCorrections.length > 0 ? `${proposedCorrections.length} potential corrections found.` : 'AI analysis complete. No corrections needed.');
+  setStatus(proposedCorrections.length > 0 ? `${proposedCorrections.length} potential corrections found.` : 'AI analysis complete. No corrections needed.');
+  setProgress(100);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -74,6 +81,8 @@ const GeoCorrector = ({ token, openAiKey }) => {
     setError('');
     setStatus('Applying corrections...');
 
+    setProgress(5);
+
     try {
       const updates = corrections.map((c) => ({
         id: c.id,
@@ -85,15 +94,19 @@ const GeoCorrector = ({ token, openAiKey }) => {
       for (const b of batches) {
         await hubSpotApiRequest('/crm/v3/objects/contacts/batch/update', 'POST', token, { inputs: b });
         await sleep(300);
+        setProgress((prev) => Math.min(95, prev + Math.round((100 / batches.length))));
       }
       setStatus('Successfully updated records.');
       setCorrections([]);
+      setProgress(100);
     } catch (err) {
       setError(err.message);
     } finally {
       setIsUpdating(false);
     }
   };
+
+  const [progress, setProgress] = useState(0);
 
   return (
     <div>
@@ -113,6 +126,7 @@ const GeoCorrector = ({ token, openAiKey }) => {
             </button>
           )}
         </div>
+        {(isLoading || isUpdating) && <ProgressBar percent={progress} text={isLoading ? 'Analyzing locations...' : 'Applying updates...'} />}
         {!openAiKey && <p className="text-yellow-600">OpenAI API Key is required for this feature.</p>}
         {error && <p className="text-red-500">{error}</p>}
         {(isLoading || isUpdating || status) && <p className="text-gray-600">{status}</p>}

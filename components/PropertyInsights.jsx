@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { hubSpotApiRequest } from '../lib/api';
 import { Spinner } from './icons';
+import ProgressBar from './ProgressBar';
 
 export default function PropertyInsights({ token }) {
   const [objectType, setObjectType] = useState('contacts');
@@ -26,6 +27,7 @@ export default function PropertyInsights({ token }) {
     setIsLoading(true);
     setError('');
     setRows([]);
+    setProgress(0);
     try {
       const { total } = await hubSpotApiRequest(`/crm/v3/objects/${objectType}/search`, 'POST', token, { limit: 1, filterGroups: [] });
       const propsRes = await hubSpotApiRequest(`/crm/v3/properties/${objectType}`, 'GET', token);
@@ -49,16 +51,20 @@ export default function PropertyInsights({ token }) {
           return { name: prop.label || prop.name, internalName: prop.name, group: prop.groupName, fillRate: ((filledCount / total) * 100).toFixed(2), noData, unused };
         }));
         out.push(...results);
-        await sleep(300);
+          await sleep(300);
+          setProgress(Math.min(99, Math.round((out.length / list.length) * 100)));
       }
 
       setRows(out);
+        setProgress(100);
     } catch (err) {
       setError(err.message);
     } finally {
       setIsLoading(false);
     }
   }, [objectType, token]);
+
+    const [progress, setProgress] = useState(0);
 
   return (
     <div>
@@ -81,7 +87,8 @@ export default function PropertyInsights({ token }) {
             {isLoading ? <Spinner /> : 'Scan Properties'}
           </button>
         </div>
-        {error && <p className="text-red-500">{error}</p>}
+  {error && <p className="text-red-500">{error}</p>}
+  {isLoading && <ProgressBar percent={progress} text={`Scanning ${objectType} properties...`} />}
         {!isLoading && rows.length > 0 && (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">

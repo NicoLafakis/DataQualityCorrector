@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Spinner } from './icons';
 import { hubSpotApiRequest } from '../lib/api';
+import ProgressBar from './ProgressBar';
 import { toTitleCase, normalizeEmail, normalizePhone, normalizeCountry, normalizeState, normalizeDate, isValidEmail, isValidUrl } from '../lib/format';
 
 const detectors = {
@@ -53,6 +54,7 @@ export default function FormattingIssues({ token }) {
     setError('');
     setIssues([]);
     setSelected({});
+    setProgress(0);
     try {
       let all = [];
       let after = undefined;
@@ -66,6 +68,8 @@ export default function FormattingIssues({ token }) {
         after = data.paging?.next?.after;
         // Optional soft cap to avoid extremely large scans in one go
         if (all.length >= 2000) after = undefined;
+        // update progress slightly per page fetched
+        setProgress((prev) => Math.min(95, prev + 4));
       } while (after);
 
       const ds = detectors[objectType] || [];
@@ -80,12 +84,15 @@ export default function FormattingIssues({ token }) {
         }
       }
       setIssues(found);
+      setProgress(100);
     } catch (err) {
       setError(err.message);
     } finally {
       setIsLoading(false);
     }
   }, [objectType, token]);
+
+  const [progress, setProgress] = useState(0);
 
   const toggleSelect = (key) => setSelected((prev) => ({ ...prev, [key]: !prev[key] }));
   const selectAll = (checked) => {
@@ -145,6 +152,7 @@ export default function FormattingIssues({ token }) {
             {isSaving ? <Spinner /> : 'Apply Selected Fixes'}
           </button>
         </div>
+        {isLoading && <ProgressBar percent={progress} text={`Scanning ${objectType} for formatting issues...`} />}
         {error && <p className="text-red-500">{error}</p>}
         {!isLoading && issues.length > 0 && (
           <div className="overflow-x-auto">

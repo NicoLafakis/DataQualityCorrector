@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { listRules, saveRule, deleteRule, newRuleId, applyRules } from '../lib/rules';
 import { hubSpotApiRequest } from '../lib/api';
 import { Spinner } from './icons';
+import ProgressBar from './ProgressBar';
 
 const OPS = [
   { value: 'lowercase', label: 'Lowercase' },
@@ -37,6 +38,7 @@ export default function AutomationRules({ token }) {
 
   const applyNow = useCallback(async () => {
     setIsApplying(true); setError('');
+    setProgress(0);
     try {
       // Fetch a page of records and apply enabled rules
       const props = 'hs_object_id,firstname,lastname,email,website,phone,city,state,country,name,domain';
@@ -49,7 +51,9 @@ export default function AutomationRules({ token }) {
         for (const batch of chunks) {
           await hubSpotApiRequest(`/crm/v3/objects/${objectType}/batch/update`, 'POST', token, { inputs: batch });
           await sleep(300);
+          setProgress((prev) => Math.min(95, prev + Math.round(100 / chunks.length)));
         }
+        setProgress(100);
       }
     } catch (err) {
       setError(err.message);
@@ -57,6 +61,8 @@ export default function AutomationRules({ token }) {
       setIsApplying(false);
     }
   }, [objectType, token, rules]);
+
+  const [progress, setProgress] = useState(0);
 
   return (
     <div>
@@ -71,6 +77,7 @@ export default function AutomationRules({ token }) {
           <button onClick={applyNow} disabled={isApplying} className="bg-green-600 text-white px-4 py-2 rounded-md disabled:bg-green-300 flex items-center">{isApplying ? <Spinner /> : 'Apply Now (sample)'}
           </button>
         </div>
+  {isApplying && <ProgressBar percent={progress} text="Applying automation rules..." />}
         {error && <p className="text-red-500">{error}</p>}
         <div className="space-y-3">
           {rules.map((r) => (

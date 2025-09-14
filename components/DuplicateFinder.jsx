@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { hubSpotApiRequest } from '../lib/api';
 import { Spinner, CheckCircleIcon, ExclamationCircleIcon } from './icons';
 import { recordAction } from '../lib/history';
+import ProgressBar from './ProgressBar';
 
 const DuplicateFinder = ({ token }) => {
   const [duplicates, setDuplicates] = useState([]);
@@ -17,6 +18,7 @@ const DuplicateFinder = ({ token }) => {
     setStatus('Finding duplicates by email...');
     setDuplicates([]);
     setMergeStatus({});
+    setProgress(0);
     try {
       let allContacts = [];
       let after = undefined;
@@ -27,6 +29,7 @@ const DuplicateFinder = ({ token }) => {
         allContacts = [...allContacts, ...data.results];
         after = data.paging?.next?.after;
         if (after) await sleep(200);
+        setProgress((prev) => Math.min(95, prev + 5));
       } while (after);
 
       const emails = allContacts.reduce((acc, contact) => {
@@ -41,12 +44,15 @@ const DuplicateFinder = ({ token }) => {
       const foundDuplicates = Object.values(emails).filter((group) => group.length > 1);
       setDuplicates(foundDuplicates);
       setStatus(foundDuplicates.length > 0 ? `Found ${foundDuplicates.length} sets of duplicates.` : 'No duplicates found by email.');
+      setProgress(100);
     } catch (err) {
       setError(err.message);
     } finally {
       setIsLoading(false);
     }
   }, [token]);
+
+  const [progress, setProgress] = useState(0);
 
   const handleSuggestMerge = async (group) => {
     if (group.length < 2) return;
@@ -104,6 +110,7 @@ const DuplicateFinder = ({ token }) => {
             {isLoading ? <Spinner /> : 'Find Contact Duplicates'}
           </button>
         </div>
+        {isLoading && <ProgressBar percent={progress} text="Scanning contacts for duplicates..." />}
         {error && <p className="text-red-500">{error}</p>}
         {(isLoading || status) && <p className="text-gray-600">{status}</p>}
 

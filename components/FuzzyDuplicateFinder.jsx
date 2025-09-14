@@ -3,6 +3,7 @@ import { hubSpotApiRequest } from '../lib/api';
 import { Spinner, CheckCircleIcon, ExclamationCircleIcon } from './icons';
 import { jaroWinkler, normalizeKey } from '../lib/fuzzy';
 import { recordAction } from '../lib/history';
+import ProgressBar from './ProgressBar';
 
 // Fuzzy duplicate finder: compares name + email + company using Jaro-Winkler
 export default function FuzzyDuplicateFinder({ token }) {
@@ -14,6 +15,7 @@ export default function FuzzyDuplicateFinder({ token }) {
 
   const scan = useCallback(async () => {
     setLoading(true); setError(''); setStatus('Scanning records...'); setSets([]);
+    setProgress(0);
     try {
       let all = []; let after;
       const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -23,6 +25,7 @@ export default function FuzzyDuplicateFinder({ token }) {
         all = all.concat(res.results || []);
         after = res.paging?.next?.after;
         if (after) await sleep(200);
+        setProgress((prev) => Math.min(95, prev + 5));
       } while (after);
 
       // build keys
@@ -68,12 +71,15 @@ export default function FuzzyDuplicateFinder({ token }) {
       const annotated = found.map((g) => g.map((m) => ({ ...m, _score: m._score || 1 })));
       setSets(annotated);
       setStatus(annotated.length ? `Found ${annotated.length} fuzzy duplicate sets` : 'No fuzzy duplicates found');
+      setProgress(100);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
   }, [token]);
+
+  const [progress, setProgress] = useState(0);
 
   const handleSuggestMerge = async (group) => {
     if (group.length < 2) return;
@@ -115,6 +121,7 @@ export default function FuzzyDuplicateFinder({ token }) {
             {loading ? <Spinner /> : 'Scan for Fuzzy Duplicates'}
           </button>
         </div>
+        {loading && <ProgressBar percent={progress} text="Scanning contacts for fuzzy duplicates..." />}
         {error && <p className="text-red-500">{error}</p>}
         {status && <p className="text-gray-600">{status}</p>}
 
