@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { hubSpotApiRequest } from '../lib/api';
 import { Spinner, CheckCircleIcon, ExclamationCircleIcon } from './icons';
+import { recordAction } from '../lib/history';
 
 const DuplicateFinder = ({ token }) => {
   const [duplicates, setDuplicates] = useState([]);
@@ -47,31 +48,38 @@ const DuplicateFinder = ({ token }) => {
     }
   }, [token]);
 
-  const handleMerge = async (group) => {
+  const handleSuggestMerge = async (group) => {
     if (group.length < 2) return;
     setIsMerging(true);
-    const sortedGroup = group.sort((a, b) => new Date(b.properties.createdate) - new Date(a.properties.createdate));
-    const primaryRecord = sortedGroup[0];
-    const recordsToMerge = sortedGroup.slice(1);
-    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    setError('');
+    try {
+      const sortedGroup = group.sort((a, b) => new Date(b.properties.createdate) - new Date(a.properties.createdate));
+      const primaryRecord = sortedGroup[0];
+      const recordsToMerge = sortedGroup.slice(1);
 
-    for (const recordToMerge of recordsToMerge) {
-      setMergeStatus((prev) => ({ ...prev, [recordToMerge.id]: 'merging' }));
-      try {
-        const path = `/crm/v3/objects/contacts/${primaryRecord.id}/merge`;
-        const body = { objectIdToMerge: recordToMerge.id };
-        await hubSpotApiRequest(path, 'POST', token, body);
-        setMergeStatus((prev) => ({ ...prev, [recordToMerge.id]: 'merged' }));
-      } catch (err) {
-        setError(`Failed to merge ${recordToMerge.id}: ${err.message}`);
-        setMergeStatus((prev) => ({ ...prev, [recordToMerge.id]: 'failed' }));
+      // capture snapshots for undo
+      const snapshots = [];
+      for (const r of [primaryRecord, ...recordsToMerge]) {
+        const obj = await hubSpotApiRequest(`/crm/v3/objects/contacts/${r.id}`, 'GET', token);
+        snapshots.push({ id: r.id, properties: obj.properties || {} });
       }
-      // brief delay to avoid spamming merge endpoint
-      await sleep(350);
-    }
 
-    await findDuplicatesByEmail();
-    setIsMerging(false);
+      const undoPayload = {
+        action: 'recreate',
+        payload: {
+          patch: [{ id: primaryRecord.id, properties: snapshots[0].properties }],
+          create: recordsToMerge.map((t, idx) => ({ properties: snapshots[idx + 1].properties })),
+        },
+      };
+
+      const payload = { primaryId: primaryRecord.id, mergeIds: recordsToMerge.map((r) => r.id), source: 'email' };
+      recordAction('merge_suggestion', primaryRecord.id, payload, undoPayload);
+      setStatus('Merge suggestion recorded to review queue');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsMerging(false);
+    }
   };
 
   const getStatusIndicator = (status) => {
@@ -117,8 +125,8 @@ const DuplicateFinder = ({ token }) => {
                     </li>
                   ))}
                 </ul>
-                <button onClick={() => handleMerge(group)} disabled={isMerging} className="mt-4 bg-orange-500 text-white px-3 py-1 text-sm rounded-md hover:bg-orange-600 disabled:bg-orange-300">
-                  Merge All into Newest Record
+                <button onClick={() => handleSuggestMerge(group)} disabled={isMerging} className="mt-4 bg-yellow-500 text-white px-3 py-1 text-sm rounded-md hover:bg-yellow-600 disabled:bg-yellow-300">
+                  Suggest Merge
                 </button>
               </div>
             ))}

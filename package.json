@@ -17,6 +17,7 @@
     "smoke:proxy": "node --experimental-fetch scripts/smoke-proxy.mjs",
     "smoke:hubspot": "node --experimental-fetch scripts/smoke-hubspot.mjs",
     "smoke:openai": "node --experimental-fetch scripts/smoke-openai.mjs",
+  "test:unit": "node --experimental-modules scripts/test-unit.mjs",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {

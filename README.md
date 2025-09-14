@@ -88,6 +88,16 @@ npm run preview
 - Or pass both via URL query params:
   - `?hubSpotToken=<token>&openAiKey=<key>`
 
+### Hardwiring OpenAI key for local dev (optional)
+If you prefer not to paste your OpenAI key into the UI each time, Vite supports environment variables prefixed with `VITE_`.
+Create a file named `.env` in the project root with the following line (Windows/UNIX compatible):
+
+```
+VITE_OPENAI_KEY=sk-...your-key-here
+```
+
+When present, the frontend will auto-fill the OpenAI key from `import.meta.env.VITE_OPENAI_KEY`. Note: do not commit secrets to source control — add `.env` to `.gitignore` in production workflows.
+
 ## Notes on the refactor
 - The original single `app.jsx` was split into modular components with no UI or behavioral changes.
 - Shared utilities and icons were extracted to `lib/api.js` and `components/icons.jsx`.

@@ -5,6 +5,7 @@ import AnomalyDetector from './components/AnomalyDetector';
 import PropertyFillRate from './components/PropertyFillRate';
 import GeoCorrector from './components/GeoCorrector';
 import DuplicateFinder from './components/DuplicateFinder';
+import FuzzyDuplicateFinder from './components/FuzzyDuplicateFinder';
 import Overview from './components/Overview';
 import CompanyDuplicateFinder from './components/CompanyDuplicateFinder';
 import FormattingIssues from './components/FormattingIssues';
@@ -13,6 +14,7 @@ import EnrichmentScanner from './components/EnrichmentScanner';
 import AutomationRules from './components/AutomationRules';
 import UniversalAnalyzer from './components/UniversalAnalyzer';
 import ScanHistory from './components/ScanHistory';
+import ReviewQueue from './components/ReviewQueue';
 
 // --- MAIN APP COMPONENT ---
 export default function App() {
@@ -43,7 +45,8 @@ export default function App() {
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const hsToken = params.get('hubSpotToken') || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('hubSpotToken') : '');
-        const oaKey = params.get('openAiKey') || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('openAiKey') : '');
+        const envKey = import.meta.env && import.meta.env.VITE_OPENAI_KEY;
+        const oaKey = params.get('openAiKey') || envKey || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('openAiKey') : '');
         if (hsToken) setHubSpotToken(hsToken);
         if (oaKey) setOpenAiKey(oaKey);
     }, []);
@@ -105,14 +108,54 @@ export default function App() {
         anomalies: { label: 'Anomalies', icon: <ShieldCheckIcon />, component: <AnomalyDetector token={hubSpotToken} /> },
         formatting: { label: 'Formatting', icon: <ShieldCheckIcon />, component: <FormattingIssues token={hubSpotToken} /> },
         fillRate: { label: 'Fill Rate', icon: <ChartPieIcon />, component: <PropertyFillRate token={hubSpotToken} /> },
-    universal: { label: 'Universal Analyzer', icon: <ChartPieIcon />, component: <UniversalAnalyzer token={hubSpotToken} /> },
-    history: { label: 'Scan History', icon: <ChartPieIcon />, component: <ScanHistory /> },
+        universal: { label: 'Universal Analyzer', icon: <ChartPieIcon />, component: <UniversalAnalyzer token={hubSpotToken} /> },
+        history: { label: 'Scan History', icon: <ChartPieIcon />, component: <ScanHistory /> },
         propertyInsights: { label: 'Property Insights', icon: <ChartPieIcon />, component: <PropertyInsights token={hubSpotToken} /> },
         enrichment: { label: 'Enrichment', icon: <GlobeIcon />, component: <EnrichmentScanner token={hubSpotToken} openAiKey={openAiKey} /> },
         duplicates: { label: 'Contact Duplicates', icon: <DocumentDuplicateIcon />, component: <DuplicateFinder token={hubSpotToken} /> },
+        fuzzyDuplicates: { label: 'Fuzzy Duplicates', icon: <DocumentDuplicateIcon />, component: <FuzzyDuplicateFinder token={hubSpotToken} /> },
+        review: { label: 'Review Queue', icon: <DocumentDuplicateIcon />, component: <ReviewQueue token={hubSpotToken} /> },
         companyDuplicates: { label: 'Company Duplicates', icon: <DocumentDuplicateIcon />, component: <CompanyDuplicateFinder token={hubSpotToken} /> },
         geoCorrect: { label: 'Geo Correction', icon: <GlobeIcon />, component: <GeoCorrector token={hubSpotToken} openAiKey={openAiKey} /> },
         automation: { label: 'Automation Rules', icon: <ShieldCheckIcon />, component: <AutomationRules token={hubSpotToken} /> },
+    };
+
+    // Sidebar grouped sections for nested menu
+    const SIDEBAR_SECTIONS = [
+        {
+            id: 'analysis',
+            label: 'Analysis',
+            items: ['overview', 'anomalies', 'formatting', 'fillRate', 'universal', 'history', 'propertyInsights', 'enrichment']
+        },
+        {
+            id: 'duplicates',
+            label: 'Duplicates',
+            items: ['duplicates', 'fuzzyDuplicates', 'companyDuplicates', 'review']
+        },
+        {
+            id: 'tools',
+            label: 'Tools',
+            items: ['geoCorrect', 'automation']
+        }
+    ];
+
+    // Expansion state for collapsible sections. Start with sections that contain the activeTab expanded.
+    const initialExpanded = SIDEBAR_SECTIONS.reduce((acc, s) => {
+        acc[s.id] = s.items.includes(activeTab);
+        return acc;
+    }, {});
+    const [expandedSections, setExpandedSections] = useState(initialExpanded);
+
+    // Whenever activeTab changes, auto-expand the section containing it and optionally collapse others
+    useEffect(() => {
+        const containing = SIDEBAR_SECTIONS.find(s => s.items.includes(activeTab));
+        if (containing) {
+            setExpandedSections(prev => ({ ...prev, [containing.id]: true }));
+        }
+    }, [activeTab]);
+
+    const toggleSection = (sectionId) => {
+        setExpandedSections(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
     };
 
     return (
@@ -126,17 +169,44 @@ export default function App() {
             <main className="container px-6 py-8 mx-auto">
                 <div className="flex flex-col gap-8 md:flex-row">
                     <aside className="md:w-1/4 lg:w-1/5">
-                        <nav className="space-y-2">
-                            {Object.entries(TABS).map(([key, tab]) => (
-                                <button
-                                    key={key}
-                                    onClick={() => setActiveTab(key)}
-                                    disabled={!tokenValid}
-                                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors duration-200 ${activeTab === key ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-600 hover:bg-gray-200'} disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed`}
-                                >
-                                    {tab.icon}
-                                    <span className="font-medium">{tab.label}</span>
-                                </button>
+                        <nav className="space-y-4">
+                            {SIDEBAR_SECTIONS.map(section => (
+                                <div key={section.id} className="bg-white border border-gray-100 rounded-md shadow-sm">
+                                    <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between">
+                                        <h4 className="text-sm font-semibold text-gray-700">{section.label}</h4>
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleSection(section.id)}
+                                            className="p-1 text-gray-500 hover:text-gray-700"
+                                            aria-expanded={!!expandedSections[section.id]}
+                                            aria-controls={`section-${section.id}`}
+                                        >
+                                            {/* simple chevron */}
+                                            <svg className={`w-4 h-4 transform transition-transform duration-150 ${expandedSections[section.id] ? 'rotate-90' : ''}`} viewBox="0 0 20 20" fill="none" stroke="currentColor">
+                                                <path d="M6 6 L14 10 L6 14" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                    {expandedSections[section.id] ? (
+                                        <div id={`section-${section.id}`} className="p-2 space-y-1">
+                                            {section.items.map(key => {
+                                                const tab = TABS[key];
+                                                if (!tab) return null;
+                                                return (
+                                                    <button
+                                                        key={key}
+                                                        onClick={() => setActiveTab(key)}
+                                                        disabled={!tokenValid}
+                                                        className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors duration-200 ${activeTab === key ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-600 hover:bg-gray-200'} disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed`}
+                                                    >
+                                                        {tab.icon}
+                                                        <span className="font-medium">{tab.label}</span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : null}
+                                </div>
                             ))}
                         </nav>
 
