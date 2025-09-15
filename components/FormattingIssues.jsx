@@ -38,8 +38,15 @@ export default function FormattingIssues({ token }) {
         const res = await hubSpotApiRequest('/crm/v3/schemas', 'GET', token);
         const list = (res.results || []).map((s) => ({ name: s.name, labels: s.labels }));
         const priority = ['contacts', 'companies', 'deals', 'tickets'];
-        list.sort((a, b) => (priority.indexOf(a.name) + 999) - (priority.indexOf(b.name) + 999) || a.name.localeCompare(b.name));
+        list.sort((a, b) => {
+          const ia = priority.indexOf(a.name);
+          const ib = priority.indexOf(b.name);
+          const pa = ia === -1 ? Number.MAX_SAFE_INTEGER : ia;
+          const pb = ib === -1 ? Number.MAX_SAFE_INTEGER : ib;
+          return pa - pb || a.name.localeCompare(b.name);
+        });
         setSchemas(list);
+        if (!list.find((s) => s.name === objectType) && list.length) setObjectType(list[0].name);
       } catch {}
     };
     load();

@@ -38,8 +38,19 @@ const AnomalyDetector = ({ token }) => {
         const res = await hubSpotApiRequest('/crm/v3/schemas', 'GET', token);
         const list = (res.results || []).map((s) => ({ name: s.name, labels: s.labels }));
         const priority = ['contacts', 'companies', 'deals', 'tickets'];
-        list.sort((a, b) => (priority.indexOf(a.name) + 999) - (priority.indexOf(b.name) + 999) || a.name.localeCompare(b.name));
+        // Place common objects first, then alphabetical. Use large index for non-priority items.
+        list.sort((a, b) => {
+          const ia = priority.indexOf(a.name);
+          const ib = priority.indexOf(b.name);
+          const pa = ia === -1 ? Number.MAX_SAFE_INTEGER : ia;
+          const pb = ib === -1 ? Number.MAX_SAFE_INTEGER : ib;
+          return pa - pb || a.name.localeCompare(b.name);
+        });
         setSchemas(list);
+        // If current objectType isn't present in the returned schemas, default to the first available schema
+        if (objectType && !list.find((s) => s.name === objectType)) {
+          setObjectType(list[0]?.name || 'contacts');
+        }
       } catch {}
     };
     load();
@@ -203,6 +214,8 @@ const AnomalyDetector = ({ token }) => {
               <>
                 <option value="contacts">Contacts</option>
                 <option value="companies">Companies</option>
+                <option value="deals">Deals</option>
+                <option value="tickets">Tickets</option>
               </>
             )}
           </select>

@@ -35,9 +35,16 @@ export default function UniversalAnalyzer({ token }) {
       }));
       // Put common objects on top
       const priority = ['contacts', 'companies', 'deals', 'tickets'];
-      list.sort((a, b) => (priority.indexOf(a.name) + 999) - (priority.indexOf(b.name) + 999) || a.name.localeCompare(b.name));
+      list.sort((a, b) => {
+        const ia = priority.indexOf(a.name);
+        const ib = priority.indexOf(b.name);
+        const pa = ia === -1 ? Number.MAX_SAFE_INTEGER : ia;
+        const pb = ib === -1 ? Number.MAX_SAFE_INTEGER : ib;
+        return pa - pb || a.name.localeCompare(b.name);
+      });
       setSchemas(list);
-      if (!selected && list.length) setSelected(list[0].name);
+      // If selected is not present in the discovered schemas, choose the top-priority available schema
+      if ((!selected || !list.find((s) => s.name === selected)) && list.length) setSelected(list[0].name);
     } catch (err) {
       setError(err.message);
     } finally {
