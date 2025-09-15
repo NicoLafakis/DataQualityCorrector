@@ -18,42 +18,54 @@ Dev & run commands (Windows / `cmd.exe`)
 - Run frontend + proxy: `npm run dev` (starts Vite frontend at `http://localhost:5173` and example proxy at `http://localhost:3001`).
 - Smoke scripts: `npm run smoke:proxy`, `npm run smoke:hubspot`, `npm run smoke:openai` for quick integration checks.
 
-Project-specific conventions
+```instructions
+<!-- Short, actionable guidance for AI coding agents working on DataQualityCorrector. Keep edits minimal and follow existing patterns. -->
+# Copilot instructions — DataQualityCorrector
 
-- Always call external services through the proxy. See `lib/api.js` for `API_BASE` handling (Vite dev proxy vs `VITE_API_BASE` / `window.__DQC_API_BASE__`).
-- UI patterns: show `Spinner` while async work and disable action buttons to avoid duplicate requests (see `components/icons.jsx` and usage across components).
-- Error surface: bubble errors with `err.message` and render in red (`<p className="text-red-500">`). Follow existing error patterns.
-- Pagination: use `limit=100` and loop on `paging.next.after` when scanning objects (see `AnomalyDetector.jsx` and `UniversalAnalyzer.jsx`).
+Quick orientation
 
-Examples to copy/adapt
+- Purpose: Client-side React app that audits & corrects HubSpot CRM data. UI never calls third-party APIs directly — it uses two proxy endpoints: `POST /api/hubspot` and `POST /api/openai`.
+- Entry points: `main.jsx` -> `app.jsx`. Feature UIs live in `components/*.jsx`. API helpers live in `lib/api.js`.
 
-- Validate token (from `app.jsx`):
-  - Try `POST /oauth/v2/private-apps/get/access-token-info` with `{ tokenKey }`, fallback to `GET /oauth/v1/access-tokens/{token}`.
-- HubSpot search for property presence (from `UniversalAnalyzer.jsx`):
-  - POST `/crm/v3/objects/{objectType}/search` with `filterGroups: [{ filters: [{ propertyName, operator: 'HAS_PROPERTY' }] }]` and read `total`.
-- Geo-batch update pattern (from `GeoCorrector.jsx`): use `/crm/v3/objects/{objectType}/batch/update` with array of `id`/`properties` payloads.
+Core rules (must follow)
 
-Safety notes for agents
+- Never call HubSpot or OpenAI directly from the frontend. Use `hubSpotApiRequest(path, method, token, body)` and `openAiApiRequest(apiKey, prompt)` exported from `lib/api.js`.
+- Tokens/keys: `app.jsx` reads `hubSpotToken` and `openAiKey` from URL query params or `sessionStorage`. Keep that flow when adding auth UI.
+- Rate-limits & retries: `lib/api.js` implements retry/backoff and a HubSpot scheduler (`enqueueHubSpot`) — reuse these helpers for any HubSpot interactions to avoid bursts.
 
-- Do not embed secrets in code. Use `sessionStorage`, query params, or environment variables for local runs. Example proxy expects `apiKey`/`token` in request bodies.
-- Keep UI changes minimal unless the task is explicitly about UX: prefer functional, minimal changes that follow existing class names and layout.
+Dev & validation (Windows `cmd.exe` examples)
 
-Files to inspect first
+- One-time: `npm install` then `npm run install:proxy` (installs example proxy under `examples/backend-proxy`).
+- Run frontend + example proxy: `npm run dev` (Vite frontend at `http://localhost:5173`, proxy at `http://localhost:3001`).
+- Quick checks: `npm run smoke:proxy`, `npm run smoke:hubspot`, `npm run smoke:openai` (pass `HUBSPOT_TOKEN` / `OPENAI_KEY` env vars when required).
 
-- `app.jsx` (tabs, token handling)
-- `lib/api.js` (retry, scheduler, API boundary)
-- `components/*.jsx` (patterns for pagination, batching, UI state)
-- `examples/backend-proxy/server.js` (proxy contract)
-- `AGENT_GUIDE.md` and `README.md` (quick commands & conventions)
+Project conventions & patterns to copy
 
-If you add a new tool
+- API boundary: `lib/api.js` builds `API_BASE` (empty in dev because Vite proxies `/api/*`; otherwise uses `VITE_API_BASE` or `window.__DQC_API_BASE__`). Check this file first when debugging network behavior.
+- UI async pattern: show `Spinner` and disable action buttons during async work (see `components/icons.jsx` and usage across components).
+- Error surface: surface errors with `err.message` and render them in red (`<p className="text-red-500">`).
+- Pagination: use `limit=100` and loop on `paging.next.after` when scanning HubSpot objects (see `AnomalyDetector.jsx`, `UniversalAnalyzer.jsx`).
+- Batch updates: prefer HubSpot batch endpoints (example in `GeoCorrector.jsx` uses `/crm/v3/objects/{type}/batch/update`).
 
-- Add `components/MyTool.jsx`, follow the async/spinner/error patterns, then wire it into `TABS` in `app.jsx` with an icon from `components/icons.jsx`.
+Files to inspect first (high ROI)
 
-When done
+- `app.jsx` — token handling, tab wiring
+- `lib/api.js` — retry/backoff, HubSpot scheduler, API_BASE
+- `components/*.jsx` — feature patterns (AnomalyDetector, GeoCorrector, UniversalAnalyzer)
+- `examples/backend-proxy/server.js` — proxy request/response contract
 
-- Run `npm run dev` locally and exercise the feature with the example proxy, or run smoke scripts to validate integration. Report any runtime failures with exact console errors and stack traces.
+If adding a new tool
 
-Question / missing info
+- Create `components/MyTool.jsx` following existing component patterns (Spinner, disabled buttons, error rendering). Add your tab to `TABS` in `app.jsx` and supply an icon from `components/icons.jsx`.
+- Use the proxy helpers for all external calls and prefer batch endpoints for bulk updates.
 
-- If a proxy contract is unclear, open `examples/backend-proxy/server.js` to confirm expected request/response shapes.
+When finished
+
+- Run `npm run dev` and the appropriate smoke scripts to validate the feature against the proxy. If behavior depends on HubSpot/OpenAI, include exact env values or `sessionStorage` keys used.
+
+Misc notes
+
+- Secrets: never commit tokens. Use `sessionStorage`, URL query params, or `.env` (`VITE_OPENAI_KEY`) for local convenience.
+- If proxy behavior is unclear, inspect `examples/backend-proxy/server.js` for shape of `{ path, method, token, body }` and proxy responses.
+
+```
