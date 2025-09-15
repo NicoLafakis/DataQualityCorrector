@@ -20,8 +20,32 @@ export default function AutomationRules({ token }) {
   const [isApplying, setIsApplying] = useState(false);
   const [objectType, setObjectType] = useState('contacts');
   const [error, setError] = useState('');
+  const [schemas, setSchemas] = useState([]);
 
   useEffect(() => { setRules(listRules()); }, []);
+
+  // Load schemas so rules can target any discovered object (standard + custom)
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await hubSpotApiRequest('/crm/v3/schemas', 'GET', token);
+        const list = (res.results || []).map((s) => ({ name: s.name, labels: s.labels }));
+        const priority = ['contacts', 'companies', 'deals', 'tickets'];
+        list.sort((a, b) => {
+          const ia = priority.indexOf(a.name);
+          const ib = priority.indexOf(b.name);
+          const pa = ia === -1 ? Number.MAX_SAFE_INTEGER : ia;
+          const pb = ib === -1 ? Number.MAX_SAFE_INTEGER : ib;
+          return pa - pb || a.name.localeCompare(b.name);
+        });
+        setSchemas(list);
+        if (!list.find((s) => s.name === objectType) && list.length) setObjectType(list[0].name);
+      } catch (err) {
+        // keep fallback
+      }
+    };
+    load();
+  }, [token]);
 
   const addRule = () => {
     const r = { id: newRuleId(), label: 'New rule', objectType, property: 'email', type: 'transform', config: { op: 'lowercase' }, enabled: true, createdAt: Date.now() };
@@ -70,8 +94,14 @@ export default function AutomationRules({ token }) {
       <div className="bg-white p-4 rounded-lg shadow-sm">
         <div className="flex items-center space-x-4 mb-4">
           <select value={objectType} onChange={(e) => setObjectType(e.target.value)} className="p-2 border rounded-md">
-            <option value="contacts">Contacts</option>
-            <option value="companies">Companies</option>
+            {schemas.length > 0 ? (
+              schemas.map((s) => <option key={s.name} value={s.name}>{s.labels?.plural || s.name}</option>)
+            ) : (
+              <>
+                <option value="contacts">Contacts</option>
+                <option value="companies">Companies</option>
+              </>
+            )}
           </select>
           <button onClick={addRule} className="bg-blue-600 text-white px-4 py-2 rounded-md">Add Rule</button>
           <button onClick={applyNow} disabled={isApplying} className="bg-green-600 text-white px-4 py-2 rounded-md disabled:bg-green-300 flex items-center">{isApplying ? <Spinner /> : 'Apply Now (sample)'}
@@ -85,8 +115,14 @@ export default function AutomationRules({ token }) {
               <div className="grid grid-cols-1 md:grid-cols-6 gap-2 items-center">
                 <input className="p-2 border rounded" value={r.label} onChange={(e) => updateRule(r.id, { label: e.target.value })} />
                 <select className="p-2 border rounded" value={r.objectType} onChange={(e) => updateRule(r.id, { objectType: e.target.value })}>
-                  <option value="contacts">contacts</option>
-                  <option value="companies">companies</option>
+                  {schemas.length > 0 ? (
+                    schemas.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)
+                  ) : (
+                    <>
+                      <option value="contacts">contacts</option>
+                      <option value="companies">companies</option>
+                    </>
+                  )}
                 </select>
                 <input className="p-2 border rounded" value={r.property} onChange={(e) => updateRule(r.id, { property: e.target.value })} />
                 <select className="p-2 border rounded" value={r.config?.op || 'lowercase'} onChange={(e) => updateRule(r.id, { config: { ...(r.config || {}), op: e.target.value } })}>
